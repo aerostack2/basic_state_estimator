@@ -29,8 +29,8 @@ void BasicStateEstimator::setupNode()
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      this->generate_global_name(as2_names::topics::self_localization::odom),
-      as2_names::topics::self_localization::qos,
+      this->generate_global_name(as2_names::topics::sensor_measurements::odom),
+      as2_names::topics::sensor_measurements::qos,
       std::bind(&BasicStateEstimator::odomCallback, this, std::placeholders::_1));
 
   pose_estimated_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(as2_names::topics::self_localization::pose, as2_names::topics::self_localization::qos);
