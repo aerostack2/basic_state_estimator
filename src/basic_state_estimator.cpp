@@ -154,7 +154,7 @@ void BasicStateEstimator::getGlobalRefState()
   try
   {
     auto pose_transform =
-        tf_buffer_->lookupTransform(baselink_frame_, global_ref_frame_, tf2::TimePointZero);
+        tf_buffer_->lookupTransform(global_ref_frame_, baselink_frame_, tf2::TimePointZero);
     global_ref_pose.position.x = pose_transform.transform.translation.x;
     global_ref_pose.position.y = pose_transform.transform.translation.y;
     global_ref_pose.position.z = pose_transform.transform.translation.z;
