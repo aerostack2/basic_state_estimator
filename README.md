@@ -1,3 +1,3 @@
-# as2_node_template
+# basic_state_estimator
 
-Template for Aerostack2 Nodes
+Basic State Estimator
