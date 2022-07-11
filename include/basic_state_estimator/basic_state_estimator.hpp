@@ -20,11 +20,12 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 
-#define ONLY_ODOM True
-#define GROUND_TRUTH False
+#define ONLY_ODOM true
+#define GROUND_TRUTH false
 
-class BasicStateEstimator : public as2::Node {
-  public:
+class BasicStateEstimator : public as2::Node
+{
+public:
   BasicStateEstimator();
 
   void setupNode();
@@ -37,10 +38,11 @@ class BasicStateEstimator : public as2::Node {
   geometry_msgs::msg::Transform calculateLocalization();
   void publishTfs();
 
-  private:
+private:
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tfstatic_broadcaster_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr gt_pose_sub_;
@@ -55,13 +57,13 @@ class BasicStateEstimator : public as2::Node {
   std::vector<geometry_msgs::msg::TransformStamped> tf2_fix_transforms_;
   geometry_msgs::msg::TransformStamped map2odom_tf_;
   geometry_msgs::msg::TransformStamped odom2baselink_tf_;
-  geometry_msgs::msg::TwistStamped odom_twist_; 
+  geometry_msgs::msg::TwistStamped odom_twist_;
   geometry_msgs::msg::Pose gt_pose_;
   geometry_msgs::msg::TwistStamped gt_twist_;
   geometry_msgs::msg::Pose global_ref_pose;
-  geometry_msgs::msg::TwistStamped global_ref_twist; //TODO:Review
+  geometry_msgs::msg::TwistStamped global_ref_twist; // TODO:Review
 
-  bool only_odom_;
+  bool odom_only_;
   bool ground_truth_;
   bool sensor_fusion_;
 
@@ -72,10 +74,9 @@ class BasicStateEstimator : public as2::Node {
   std::string odom_frame_;
   std::string baselink_frame_;
 
-
   void publishStateEstimation();
-  geometry_msgs::msg::PoseStamped generatePoseStampedMsg(const rclcpp::Time &_timestamp); 
-  geometry_msgs::msg::TwistStamped generateTwistStampedMsg(const rclcpp::Time &_timestamp); 
+  geometry_msgs::msg::PoseStamped generatePoseStampedMsg(const rclcpp::Time &_timestamp);
+  geometry_msgs::msg::TwistStamped generateTwistStampedMsg(const rclcpp::Time &_timestamp);
 
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
@@ -85,4 +86,4 @@ class BasicStateEstimator : public as2::Node {
   CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override;
 };
 
-#endif  // BASIC_STATE_ESTIMATOR_HPP_
+#endif // BASIC_STATE_ESTIMATOR_HPP_

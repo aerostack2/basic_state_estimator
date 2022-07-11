@@ -2,26 +2,21 @@
 
 #include <tf2/exceptions.h>
 
-BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") {}
+BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator")
+{
+  this->declare_parameter<bool>("odom_only", false);
+  this->declare_parameter<bool>("ground_truth", false);
+  this->declare_parameter<bool>("sensor_fusion", false);
+}
 
 void BasicStateEstimator::run()
 {
-  // PRUEBA->BORRAR
-  // odom2baselink_tf_.transform.translation.x = 1.0;
-  // odom2baselink_tf_.transform.translation.y = 2.0;
-  // odom2baselink_tf_.transform.translation.z = 3.0;
-  // odom2baselink_tf_.transform.rotation.x = 0.0;
-  // odom2baselink_tf_.transform.rotation.y = 0.0;
-  // odom2baselink_tf_.transform.rotation.z = 0.0;
-  // odom2baselink_tf_.transform.rotation.w = 1.0;
-
   // TODO: SENSOR FUSION
   geometry_msgs::msg::Transform map2odom_tf;
-  bool sensor_fusion = false;
   map2odom_tf = calculateLocalization();
   updateOdomTfDrift(odom2baselink_tf_.transform, map2odom_tf);
-  getGlobalRefState();
   publishTfs();
+  getGlobalRefState();
   publishStateEstimation();
 }
 
@@ -31,6 +26,7 @@ void BasicStateEstimator::setupNode()
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
   tfstatic_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
       this->generate_global_name(as2_names::topics::self_localization::odom),
@@ -46,6 +42,29 @@ void BasicStateEstimator::setupNode()
 
 void BasicStateEstimator::setupTfTree()
 {
+
+  this->get_parameter("odom_only", odom_only_);
+  this->get_parameter("ground_truth", ground_truth_);
+  this->get_parameter("sensor_fusion", sensor_fusion_);
+
+  if (odom_only_)
+  {
+    RCLCPP_INFO(get_logger(), "ODOM ONLY MODE");
+  }
+
+  if (ground_truth_)
+  {
+    RCLCPP_INFO(get_logger(), "GROUND TRUTH MODE");
+  }
+
+  if (sensor_fusion_)
+  {
+    RCLCPP_INFO(get_logger(), "SENSOR FUSION MODE");
+  }
+
+  odom_only_ = ONLY_ODOM;
+  ground_truth_ = GROUND_TRUTH;
+
   tf2_fix_transforms_.clear();
   // global reference to drone reference
   std::string ns = this->get_namespace();
@@ -76,13 +95,13 @@ void BasicStateEstimator::setupTfTree()
   publishTfs();
 }
 
-void BasicStateEstimator::getStartingPose(const std::string &_earth_frame,
+void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
                                           const std::string &_map)
 {
   // TODO: Get starting pose
 
   // Default
-  tf2_fix_transforms_.emplace_back(getTransformation(_earth_frame, _map, 0, 0, 0, 0, 0, 0));
+  tf2_fix_transforms_.emplace_back(getTransformation(_global_frame, _map, 0, 0, 0, 0, 0, 0));
 }
 
 void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::Transform _odom2baselink,
@@ -109,7 +128,7 @@ void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::Transform 
 geometry_msgs::msg::Transform BasicStateEstimator::calculateLocalization()
 {
   geometry_msgs::msg::Transform map2baselink;
-  if (only_odom_)
+  if (odom_only_)
   {
     map2baselink = odom2baselink_tf_.transform;
   }
@@ -135,7 +154,7 @@ void BasicStateEstimator::getGlobalRefState()
   try
   {
     auto pose_transform =
-        tf_buffer_->lookupTransform(global_ref_frame_, baselink_frame_, tf2::TimePointZero);
+        tf_buffer_->lookupTransform(baselink_frame_, global_ref_frame_, tf2::TimePointZero);
     global_ref_pose.position.x = pose_transform.transform.translation.x;
     global_ref_pose.position.y = pose_transform.transform.translation.y;
     global_ref_pose.position.z = pose_transform.transform.translation.z;
@@ -150,7 +169,7 @@ void BasicStateEstimator::getGlobalRefState()
                 ex.what()); // Print exception which was caught
   }
 
-  if (only_odom_)
+  if (odom_only_)
   {
     global_ref_twist = odom_twist_;
   }
