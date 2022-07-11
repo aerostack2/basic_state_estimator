@@ -20,8 +20,8 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 
-#define ONLY_ODOM False
-#define GROUND_TRUTH True
+#define ONLY_ODOM True
+#define GROUND_TRUTH False
 
 class BasicStateEstimator : public as2::Node {
   public:

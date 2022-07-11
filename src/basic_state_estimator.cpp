@@ -20,6 +20,7 @@ void BasicStateEstimator::run()
   bool sensor_fusion = false;
   map2odom_tf = calculateLocalization();
   updateOdomTfDrift(odom2baselink_tf_.transform, map2odom_tf);
+  getGlobalRefState();
   publishTfs();
   publishStateEstimation();
 }

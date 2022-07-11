@@ -7,9 +7,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('drone_id', default_value='drone0'),
         Node(
-            package='as2_node_template',
-            executable='as2_node_template_node',
-            name='as2_node_template',
+            package='basic_state_estimator',
+            executable='basic_state_estimator_node',
+            name='basic_state_estimator',
             namespace=LaunchConfiguration('drone_id'),
             output='screen',
             emulate_tty=True
