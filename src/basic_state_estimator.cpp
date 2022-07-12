@@ -242,6 +242,9 @@ void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr 
   odom2baselink_tf_.transform.rotation.y = _msg->pose.pose.orientation.y;
   odom2baselink_tf_.transform.rotation.z = _msg->pose.pose.orientation.z;
   odom2baselink_tf_.transform.rotation.w = _msg->pose.pose.orientation.w;
+
+  odom_twist_.twist.linear = _msg->twist.twist.linear;
+  odom_twist_.twist.angular = _msg->twist.twist.angular;
 }
 
 void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg)
