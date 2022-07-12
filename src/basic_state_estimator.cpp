@@ -1,7 +1,5 @@
 #include "basic_state_estimator.hpp"
 
-#include <tf2/exceptions.h>
-
 BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") {
   this->declare_parameter<bool>("odom_only", false);
   this->declare_parameter<bool>("ground_truth", false);
@@ -29,6 +27,16 @@ void BasicStateEstimator::setupNode() {
       this->generate_global_name(as2_names::topics::sensor_measurements::odom),
       as2_names::topics::sensor_measurements::qos,
       std::bind(&BasicStateEstimator::odomCallback, this, std::placeholders::_1));
+  
+  gt_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+      this->generate_global_name(as2_names::topics::ground_truth::pose),
+      as2_names::topics::sensor_measurements::qos,
+      std::bind(&BasicStateEstimator::gtPoseCallback, this, std::placeholders::_1));
+  
+  gt_twist_sub_ = this->create_subscription<geometry_msgs::msg::TwistStamped>(
+      this->generate_global_name(as2_names::topics::ground_truth::twist),
+      as2_names::topics::sensor_measurements::qos,
+      std::bind(&BasicStateEstimator::gtTwistCallback, this, std::placeholders::_1));
 
   pose_estimated_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
       as2_names::topics::self_localization::pose, as2_names::topics::self_localization::qos);
@@ -58,9 +66,6 @@ void BasicStateEstimator::setupTfTree() {
   if (sensor_fusion_) {
     RCLCPP_INFO(get_logger(), "SENSOR FUSION MODE");
   }
-
-  odom_only_ = ONLY_ODOM;
-  ground_truth_ = GROUND_TRUTH;
 
   tf2_fix_transforms_.clear();
   // global reference to drone reference
