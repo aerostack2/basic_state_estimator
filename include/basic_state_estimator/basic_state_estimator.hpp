@@ -16,6 +16,7 @@
 #include "as2_core/names/topics.hpp"
 #include "as2_core/node.hpp"
 #include "as2_core/tf_utils.hpp"
+#include "as2_core/frame_utils/frame_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>

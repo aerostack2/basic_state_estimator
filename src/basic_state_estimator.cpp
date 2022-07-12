@@ -2,15 +2,13 @@
 
 #include <tf2/exceptions.h>
 
-BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator")
-{
+BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") {
   this->declare_parameter<bool>("odom_only", false);
   this->declare_parameter<bool>("ground_truth", false);
   this->declare_parameter<bool>("sensor_fusion", false);
 }
 
-void BasicStateEstimator::run()
-{
+void BasicStateEstimator::run() {
   // TODO: SENSOR FUSION
   geometry_msgs::msg::Transform map2odom_tf;
   map2odom_tf = calculateLocalization();
@@ -20,8 +18,7 @@ void BasicStateEstimator::run()
   publishStateEstimation();
 }
 
-void BasicStateEstimator::setupNode()
-{
+void BasicStateEstimator::setupNode() {
   // Initialize the transform broadcaster
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
   tfstatic_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
@@ -33,32 +30,32 @@ void BasicStateEstimator::setupNode()
       as2_names::topics::sensor_measurements::qos,
       std::bind(&BasicStateEstimator::odomCallback, this, std::placeholders::_1));
 
-  pose_estimated_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(as2_names::topics::self_localization::pose, as2_names::topics::self_localization::qos);
-  twist_estimated_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(as2_names::topics::self_localization::twist, as2_names::topics::self_localization::qos);
-  // pose_estimated_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(generate_global_name("self_localization/pose"), as2_names::topics::self_localization::qos);
-  // twist_estimated_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(generate_global_name("self_localization/twist"), as2_names::topics::self_localization::qos);
+  pose_estimated_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+      as2_names::topics::self_localization::pose, as2_names::topics::self_localization::qos);
+  twist_estimated_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
+      as2_names::topics::self_localization::twist, as2_names::topics::self_localization::qos);
+  // pose_estimated_pub_ =
+  // this->create_publisher<geometry_msgs::msg::PoseStamped>(generate_global_name("self_localization/pose"),
+  // as2_names::topics::self_localization::qos); twist_estimated_pub_ =
+  // this->create_publisher<geometry_msgs::msg::TwistStamped>(generate_global_name("self_localization/twist"),
+  // as2_names::topics::self_localization::qos);
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_estimated_pub_;
 }
 
-void BasicStateEstimator::setupTfTree()
-{
-
+void BasicStateEstimator::setupTfTree() {
   this->get_parameter("odom_only", odom_only_);
   this->get_parameter("ground_truth", ground_truth_);
   this->get_parameter("sensor_fusion", sensor_fusion_);
 
-  if (odom_only_)
-  {
+  if (odom_only_) {
     RCLCPP_INFO(get_logger(), "ODOM ONLY MODE");
   }
 
-  if (ground_truth_)
-  {
+  if (ground_truth_) {
     RCLCPP_INFO(get_logger(), "GROUND TRUTH MODE");
   }
 
-  if (sensor_fusion_)
-  {
+  if (sensor_fusion_) {
     RCLCPP_INFO(get_logger(), "SENSOR FUSION MODE");
   }
 
@@ -96,8 +93,7 @@ void BasicStateEstimator::setupTfTree()
 }
 
 void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
-                                          const std::string &_map)
-{
+                                          const std::string &_map) {
   // TODO: Get starting pose
 
   // Default
@@ -105,8 +101,7 @@ void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
 }
 
 void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::Transform _odom2baselink,
-                                            const geometry_msgs::msg::Transform _map2baselink)
-{
+                                            const geometry_msgs::msg::Transform _map2baselink) {
   map2odom_tf_.transform.translation.x = _map2baselink.translation.x - _odom2baselink.translation.x;
   map2odom_tf_.transform.translation.y = _map2baselink.translation.y - _odom2baselink.translation.y;
   map2odom_tf_.transform.translation.z = _map2baselink.translation.z - _odom2baselink.translation.z;
@@ -125,15 +120,12 @@ void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::Transform 
   map2odom_tf_.transform.rotation.w = map2odom_orientation.w();
 }
 
-geometry_msgs::msg::Transform BasicStateEstimator::calculateLocalization()
-{
+geometry_msgs::msg::Transform BasicStateEstimator::calculateLocalization() {
   geometry_msgs::msg::Transform map2baselink;
-  if (odom_only_)
-  {
+  if (odom_only_) {
     map2baselink = odom2baselink_tf_.transform;
   }
-  if (ground_truth_)
-  {
+  if (ground_truth_) {
     map2baselink.translation.x = gt_pose_.position.x;
     map2baselink.translation.y = gt_pose_.position.x;
     map2baselink.translation.z = gt_pose_.position.x;
@@ -142,17 +134,14 @@ geometry_msgs::msg::Transform BasicStateEstimator::calculateLocalization()
     map2baselink.rotation.z = gt_pose_.orientation.z;
     map2baselink.rotation.w = gt_pose_.orientation.w;
   }
-  if (!sensor_fusion_)
-  {
+  if (!sensor_fusion_) {
     // TODO: SENSOR FUSION
   }
   return map2baselink;
 }
 
-void BasicStateEstimator::getGlobalRefState()
-{
-  try
-  {
+void BasicStateEstimator::getGlobalRefState() {
+  try {
     auto pose_transform =
         tf_buffer_->lookupTransform(global_ref_frame_, baselink_frame_, tf2::TimePointZero);
     global_ref_pose.position.x = pose_transform.transform.translation.x;
@@ -162,35 +151,39 @@ void BasicStateEstimator::getGlobalRefState()
     global_ref_pose.orientation.y = pose_transform.transform.rotation.y;
     global_ref_pose.orientation.z = pose_transform.transform.rotation.z;
     global_ref_pose.orientation.w = pose_transform.transform.rotation.w;
-  }
-  catch (tf2::TransformException &ex)
-  {
+  } catch (tf2::TransformException &ex) {
     RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
-                ex.what()); // Print exception which was caught
+                ex.what());  // Print exception which was caught
   }
 
-  if (odom_only_)
-  {
-    global_ref_twist = odom_twist_;
+  if (odom_only_) {
+    global_ref_twist.header.frame_id = odom_frame_;
+    global_ref_twist.twist.angular = odom_twist_.twist.angular;
+    tf2::Quaternion orientation(
+        odom2baselink_tf_.transform.rotation.x, odom2baselink_tf_.transform.rotation.y,
+        odom2baselink_tf_.transform.rotation.z, odom2baselink_tf_.transform.rotation.w);
+        Eigen::Vector3d odom_linear_twist(odom_twist_.twist.linear.x, odom_twist_.twist.linear.y,
+                                          odom_twist_.twist.linear.z);
+    Eigen::Vector3d global_linear_twist =
+        as2::FrameUtils::convertFLUtoENU(orientation, odom_linear_twist); 
+    global_ref_twist.twist.linear.x = global_linear_twist.x();
+    global_ref_twist.twist.linear.y = global_linear_twist.y();
+    global_ref_twist.twist.linear.z = global_linear_twist.z();
   }
 
-  if (ground_truth_)
-  {
+  if (ground_truth_) {
     global_ref_twist = gt_twist_;
   }
 
-  if (sensor_fusion_)
-  { // TODO: Sensor fusion
+  if (sensor_fusion_) {  // TODO: Sensor fusion
   }
 }
 
 // PUBLISH //
 
-void BasicStateEstimator::publishTfs()
-{
+void BasicStateEstimator::publishTfs() {
   rclcpp::Time timestamp = this->get_clock()->now();
-  for (geometry_msgs::msg::TransformStamped &transform : tf2_fix_transforms_)
-  {
+  for (geometry_msgs::msg::TransformStamped &transform : tf2_fix_transforms_) {
     transform.header.stamp = timestamp;
     tfstatic_broadcaster_->sendTransform(transform);
   }
@@ -200,16 +193,14 @@ void BasicStateEstimator::publishTfs()
   tf_broadcaster_->sendTransform(odom2baselink_tf_);
 }
 
-void BasicStateEstimator::publishStateEstimation()
-{
+void BasicStateEstimator::publishStateEstimation() {
   rclcpp::Time timestamp = this->get_clock()->now();
   pose_estimated_pub_->publish(generatePoseStampedMsg(timestamp));
   twist_estimated_pub_->publish(generateTwistStampedMsg(timestamp));
 }
 
 geometry_msgs::msg::PoseStamped BasicStateEstimator::generatePoseStampedMsg(
-    const rclcpp::Time &_timestamp)
-{
+    const rclcpp::Time &_timestamp) {
   geometry_msgs::msg::PoseStamped pose_stamped;
   pose_stamped.header.stamp = _timestamp;
   pose_stamped.header.frame_id = global_ref_frame_;
@@ -219,11 +210,10 @@ geometry_msgs::msg::PoseStamped BasicStateEstimator::generatePoseStampedMsg(
 }
 
 geometry_msgs::msg::TwistStamped BasicStateEstimator::generateTwistStampedMsg(
-    const rclcpp::Time &_timestamp)
-{
+    const rclcpp::Time &_timestamp) {
   geometry_msgs::msg::TwistStamped twist_stamped;
   twist_stamped.header.stamp = _timestamp;
-  twist_stamped.header.frame_id = global_ref_twist.header.frame_id; // TODO:Review ref frame
+  twist_stamped.header.frame_id = global_ref_twist.header.frame_id;  // TODO:Review ref frame
   twist_stamped.twist.linear = global_ref_twist.twist.linear;
   twist_stamped.twist.angular = global_ref_twist.twist.angular;
   return twist_stamped;
@@ -231,8 +221,7 @@ geometry_msgs::msg::TwistStamped BasicStateEstimator::generateTwistStampedMsg(
 
 // CALLBACKS //
 
-void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr _msg)
-{
+void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr _msg) {
   // rclcpp::Time timestamp = this->get_clock()->now();
   // odom2baselink_tf_.header.stamp = timestamp;
   odom2baselink_tf_.transform.translation.x = _msg->pose.pose.position.x;
@@ -243,17 +232,16 @@ void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr 
   odom2baselink_tf_.transform.rotation.z = _msg->pose.pose.orientation.z;
   odom2baselink_tf_.transform.rotation.w = _msg->pose.pose.orientation.w;
 
+  odom_twist_.header.frame_id = odom_frame_;
   odom_twist_.twist.linear = _msg->twist.twist.linear;
   odom_twist_.twist.angular = _msg->twist.twist.angular;
 }
 
-void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg)
-{
+void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {
   gt_pose_ = _msg->pose;
 }
 
-void BasicStateEstimator::gtTwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr _msg)
-{
+void BasicStateEstimator::gtTwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr _msg) {
   gt_twist_.header.frame_id = _msg->header.frame_id;
   gt_twist_.twist = _msg->twist;
 }
@@ -264,32 +252,28 @@ void BasicStateEstimator::cleanupNode(){
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
-CallbackReturn BasicStateEstimator::on_configure(const rclcpp_lifecycle::State &_state)
-{
+CallbackReturn BasicStateEstimator::on_configure(const rclcpp_lifecycle::State &_state) {
   // Set subscriptions, publishers, services, actions, etc. here.
   setupNode();
 
   return CallbackReturn::SUCCESS;
 };
 
-CallbackReturn BasicStateEstimator::on_activate(const rclcpp_lifecycle::State &_state)
-{
+CallbackReturn BasicStateEstimator::on_activate(const rclcpp_lifecycle::State &_state) {
   // Set parameters?
   setupTfTree();
 
   return CallbackReturn::SUCCESS;
 };
 
-CallbackReturn BasicStateEstimator::on_deactivate(const rclcpp_lifecycle::State &_state)
-{
+CallbackReturn BasicStateEstimator::on_deactivate(const rclcpp_lifecycle::State &_state) {
   // Clean up subscriptions, publishers, services, actions, etc. here.
   cleanupNode();
 
   return CallbackReturn::SUCCESS;
 };
 
-CallbackReturn BasicStateEstimator::on_shutdown(const rclcpp_lifecycle::State &_state)
-{
+CallbackReturn BasicStateEstimator::on_shutdown(const rclcpp_lifecycle::State &_state) {
   // Clean other resources here.
 
   return CallbackReturn::SUCCESS;
