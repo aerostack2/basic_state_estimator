@@ -27,12 +27,12 @@ void BasicStateEstimator::setupNode() {
       this->generate_global_name(as2_names::topics::sensor_measurements::odom),
       as2_names::topics::sensor_measurements::qos,
       std::bind(&BasicStateEstimator::odomCallback, this, std::placeholders::_1));
-  
+
   gt_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
       this->generate_global_name(as2_names::topics::ground_truth::pose),
       as2_names::topics::sensor_measurements::qos,
       std::bind(&BasicStateEstimator::gtPoseCallback, this, std::placeholders::_1));
-  
+
   gt_twist_sub_ = this->create_subscription<geometry_msgs::msg::TwistStamped>(
       this->generate_global_name(as2_names::topics::ground_truth::twist),
       as2_names::topics::sensor_measurements::qos,
@@ -162,15 +162,19 @@ void BasicStateEstimator::getGlobalRefState() {
   }
 
   if (odom_only_) {
-    global_ref_twist.header.frame_id = odom_frame_;
+    global_ref_twist.header.frame_id = global_ref_frame_;
     global_ref_twist.twist.angular = odom_twist_.twist.angular;
     tf2::Quaternion orientation(
-        odom2baselink_tf_.transform.rotation.x, odom2baselink_tf_.transform.rotation.y,
-        odom2baselink_tf_.transform.rotation.z, odom2baselink_tf_.transform.rotation.w);
-        Eigen::Vector3d odom_linear_twist(odom_twist_.twist.linear.x, odom_twist_.twist.linear.y,
-                                          odom_twist_.twist.linear.z);
+        global_ref_pose.orientation.x, global_ref_pose.orientation.y, global_ref_pose.orientation.z,
+        global_ref_pose.orientation.w);
+
+    // odom2baselink_tf_.transform.rotation.x, odom2baselink_tf_.transform.rotation.y,
+    // odom2baselink_tf_.transform.rotation.z, odom2baselink_tf_.transform.rotation.w);
+    
+    Eigen::Vector3d odom_linear_twist(odom_twist_.twist.linear.x, odom_twist_.twist.linear.y,
+                                      odom_twist_.twist.linear.z);
     Eigen::Vector3d global_linear_twist =
-        as2::FrameUtils::convertFLUtoENU(orientation, odom_linear_twist); 
+        as2::FrameUtils::convertFLUtoENU(orientation, odom_linear_twist);
     global_ref_twist.twist.linear.x = global_linear_twist.x();
     global_ref_twist.twist.linear.y = global_linear_twist.y();
     global_ref_twist.twist.linear.z = global_linear_twist.z();
