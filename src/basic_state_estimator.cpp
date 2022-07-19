@@ -78,12 +78,6 @@ void BasicStateEstimator::setupNode() {
       as2_names::topics::self_localization::pose, as2_names::topics::self_localization::qos);
   twist_estimated_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
       as2_names::topics::self_localization::twist, as2_names::topics::self_localization::qos);
-  // pose_estimated_pub_ =
-  // this->create_publisher<geometry_msgs::msg::PoseStamped>(generate_global_name("self_localization/pose"),
-  // as2_names::topics::self_localization::qos); twist_estimated_pub_ =
-  // this->create_publisher<geometry_msgs::msg::TwistStamped>(generate_global_name("self_localization/twist"),
-  // as2_names::topics::self_localization::qos);
-  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_estimated_pub_;
 }
 
 void BasicStateEstimator::setupTfTree() {
