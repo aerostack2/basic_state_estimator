@@ -43,15 +43,11 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <geometry_msgs/msg/detail/pose_stamped__struct.hpp>
-#include <geometry_msgs/msg/detail/transform__struct.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include "as2_core/frame_utils/frame_utils.hpp"
-#include "as2_core/names/actions.hpp"
-#include "as2_core/names/services.hpp"
 #include "as2_core/names/topics.hpp"
 #include "as2_core/node.hpp"
 #include "as2_core/tf_utils.hpp"

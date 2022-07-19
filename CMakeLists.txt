@@ -17,14 +17,10 @@ set(PROJECT_DEPENDENCIES
   ament_cmake
   rclcpp
   as2_core
-  std_msgs
-  as2_msgs
-  std_srvs
   nav_msgs
   geometry_msgs
   tf2
   tf2_ros
-  tf2_geometry_msgs
 )
 
 foreach(DEPENDENCY ${PROJECT_DEPENDENCIES})
