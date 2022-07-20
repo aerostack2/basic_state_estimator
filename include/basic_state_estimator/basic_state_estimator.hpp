@@ -11,7 +11,7 @@
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
@@ -20,7 +20,7 @@
  * 3. Neither the name of the copyright holder nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -53,8 +53,9 @@
 #include "as2_core/tf_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 
-class BasicStateEstimator : public as2::Node {
-  public:
+class BasicStateEstimator : public as2::Node
+{
+public:
   BasicStateEstimator();
 
   void setupNode();
@@ -67,7 +68,7 @@ class BasicStateEstimator : public as2::Node {
   geometry_msgs::msg::Transform calculateLocalization();
   void publishTfs();
 
-  private:
+private:
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tfstatic_broadcaster_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -90,11 +91,12 @@ class BasicStateEstimator : public as2::Node {
   geometry_msgs::msg::Pose gt_pose_;
   geometry_msgs::msg::TwistStamped gt_twist_;
   geometry_msgs::msg::Pose global_ref_pose;
-  geometry_msgs::msg::TwistStamped global_ref_twist;  // TODO:Review
+  geometry_msgs::msg::TwistStamped global_ref_twist; // TODO:Review
 
   bool odom_only_;
   bool ground_truth_;
   bool sensor_fusion_;
+  bool start_run_;
 
   void getGlobalRefState();
 
@@ -115,4 +117,4 @@ class BasicStateEstimator : public as2::Node {
   CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override;
 };
 
-#endif  // BASIC_STATE_ESTIMATOR_HPP_
+#endif // BASIC_STATE_ESTIMATOR_HPP_

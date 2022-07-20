@@ -7,7 +7,7 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('drone_id', default_value='drone0'),
-        DeclareLaunchArgument('odom_only', default_value='True'),
+        DeclareLaunchArgument('odom_only', default_value='False'),
         DeclareLaunchArgument('ground_truth', default_value='False'),
         DeclareLaunchArgument('sensor_fusion', default_value='False'),
         Node(
