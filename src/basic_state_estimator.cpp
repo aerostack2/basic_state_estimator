@@ -108,6 +108,13 @@ void BasicStateEstimator::setupTfTree()
     RCLCPP_INFO(get_logger(), "SENSOR FUSION MODE");
   }
 
+  if (!odom_only_ & !ground_truth_ & !sensor_fusion_)
+  {
+    RCLCPP_ERROR(get_logger(), "NO ESTIMATION MODE ENABLED");
+    RCLCPP_ERROR(get_logger(), "DEFAULT: ODOM ONLY ACTIVATED");
+    odom_only_ = true;
+  }
+
   tf2_fix_transforms_.clear();
   // global reference to drone reference
   std::string ns = this->get_namespace();
