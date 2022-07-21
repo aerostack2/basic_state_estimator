@@ -41,6 +41,7 @@ BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator")
   this->declare_parameter<bool>("odom_only", false);
   this->declare_parameter<bool>("ground_truth", false);
   this->declare_parameter<bool>("sensor_fusion", false);
+  this->declare_parameter<std::string>("base_frame", "base_link");
 }
 
 void BasicStateEstimator::run()
@@ -89,6 +90,8 @@ void BasicStateEstimator::setupNode()
 
 void BasicStateEstimator::setupTfTree()
 {
+  std::string base_frame; 
+  this->get_parameter("base_frame", base_frame);
   this->get_parameter("odom_only", odom_only_);
   this->get_parameter("ground_truth", ground_truth_);
   this->get_parameter("sensor_fusion", sensor_fusion_);
@@ -121,7 +124,14 @@ void BasicStateEstimator::setupTfTree()
   global_ref_frame_ = "earth";
   map_frame_ = generateTfName(ns, "map");
   odom_frame_ = generateTfName(ns, "odom");
-  baselink_frame_ = generateTfName(ns, "base_link");
+  if (base_frame == "")
+  {
+    baselink_frame_ = ns.substr(1, ns.length());
+    RCLCPP_WARN(get_logger(), "NO BASE FRAME SPECIFIED , USING DEFAULT: %s", baselink_frame_.c_str());
+  }
+  else {
+    baselink_frame_ = generateTfName(ns, base_frame);
+  }
 
   getStartingPose(global_ref_frame_, map_frame_);
 
@@ -187,8 +197,8 @@ geometry_msgs::msg::Transform BasicStateEstimator::calculateLocalization()
   if (ground_truth_)
   {
     map2baselink.translation.x = gt_pose_.position.x;
-    map2baselink.translation.y = gt_pose_.position.x;
-    map2baselink.translation.z = gt_pose_.position.x;
+    map2baselink.translation.y = gt_pose_.position.y;
+    map2baselink.translation.z = gt_pose_.position.z;
     map2baselink.rotation.x = gt_pose_.orientation.x;
     map2baselink.rotation.y = gt_pose_.orientation.y;
     map2baselink.rotation.z = gt_pose_.orientation.z;
