@@ -90,7 +90,7 @@ void BasicStateEstimator::setupNode()
 
 void BasicStateEstimator::setupTfTree()
 {
-  std::string base_frame; 
+  std::string base_frame;
   this->get_parameter("base_frame", base_frame);
   this->get_parameter("odom_only", odom_only_);
   this->get_parameter("ground_truth", ground_truth_);
@@ -129,7 +129,8 @@ void BasicStateEstimator::setupTfTree()
     baselink_frame_ = ns.substr(1, ns.length());
     RCLCPP_WARN(get_logger(), "NO BASE FRAME SPECIFIED , USING DEFAULT: %s", baselink_frame_.c_str());
   }
-  else {
+  else
+  {
     baselink_frame_ = generateTfName(ns, base_frame);
   }
 
@@ -203,8 +204,9 @@ geometry_msgs::msg::Transform BasicStateEstimator::calculateLocalization()
     map2baselink.rotation.y = gt_pose_.orientation.y;
     map2baselink.rotation.z = gt_pose_.orientation.z;
     map2baselink.rotation.w = gt_pose_.orientation.w;
+    odom2baselink_tf_.transform = map2baselink;
   }
-  if (!sensor_fusion_)
+  if (sensor_fusion_)
   {
     // TODO: SENSOR FUSION
   }
