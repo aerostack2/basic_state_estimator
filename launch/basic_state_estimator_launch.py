@@ -16,10 +16,12 @@ def generate_launch_description():
             executable='basic_state_estimator_node',
             name='basic_state_estimator',
             namespace=LaunchConfiguration('drone_id'),
-            parameters=[{'odom_only': LaunchConfiguration('odom_only')},
-                        {'ground_truth': LaunchConfiguration('ground_truth')},
-                        {'sensor_fusion': LaunchConfiguration('sensor_fusion')},
-                        {'base_frame': LaunchConfiguration('base_frame')}],
+            parameters=[
+                {'use_sim_time': False},
+                {'odom_only': LaunchConfiguration('odom_only')},
+                {'ground_truth': LaunchConfiguration('ground_truth')},
+                {'sensor_fusion': LaunchConfiguration('sensor_fusion')},
+                {'base_frame': LaunchConfiguration('base_frame')}],
             output='screen',
             emulate_tty=True
         )
