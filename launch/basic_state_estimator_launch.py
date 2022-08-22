@@ -7,6 +7,7 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('drone_id', default_value='drone0'),
+        DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('odom_only', default_value='False'),
         DeclareLaunchArgument('ground_truth', default_value='False'),
         DeclareLaunchArgument('sensor_fusion', default_value='False'),
@@ -17,8 +18,8 @@ def generate_launch_description():
             name='basic_state_estimator',
             namespace=LaunchConfiguration('drone_id'),
             parameters=[
-                {'use_sim_time': False},
                 {'odom_only': LaunchConfiguration('odom_only')},
+                {'use_sim_time': LaunchConfiguration('use_sim_time')},
                 {'ground_truth': LaunchConfiguration('ground_truth')},
                 {'sensor_fusion': LaunchConfiguration('sensor_fusion')},
                 {'base_frame': LaunchConfiguration('base_frame')}],
