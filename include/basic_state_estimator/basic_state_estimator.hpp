@@ -53,6 +53,8 @@
 #include "as2_core/tf_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 
+#define FRAME_RECTIFIED_TOPIC "rectified_localization/pose"
+
 class BasicStateEstimator : public as2::Node
 {
 public:
@@ -63,8 +65,10 @@ public:
   void setupTfTree();
   void run();
   void getStartingPose(const std::string &_earth_frame, const std::string &_map);
-  void updateOdomTfDrift(const geometry_msgs::msg::Transform _odom2baselink,
-                         const geometry_msgs::msg::Transform _map2baselink);
+  void updateOdomTfDrift(const geometry_msgs::msg::Transform &_odom2baselink,
+                         const geometry_msgs::msg::Transform &_map2baselink);
+  void updateRefTfRectification(const geometry_msgs::msg::Transform &_frame_rectified_tf_,
+                                const geometry_msgs::msg::Transform &_ref2frame_rectified_tf_);
   geometry_msgs::msg::Transform calculateLocalization();
   void publishTfs();
 
@@ -77,25 +81,31 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr gt_pose_sub_;
   rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr gt_twist_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr rectified_pose_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_estimated_pub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_estimated_pub_;
 
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr _msg);
   void gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg);
   void gtTwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr _msg);
+  void rectPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg);
 
   std::vector<geometry_msgs::msg::TransformStamped> tf2_fix_transforms_;
   geometry_msgs::msg::TransformStamped map2odom_tf_;
   geometry_msgs::msg::TransformStamped odom2baselink_tf_;
+  geometry_msgs::msg::TransformStamped frame_rectified_tf_;
+  geometry_msgs::msg::TransformStamped ref2ref_rectified_tf_;
   geometry_msgs::msg::TwistStamped odom_twist_;
   geometry_msgs::msg::Pose gt_pose_;
   geometry_msgs::msg::TwistStamped gt_twist_;
+  geometry_msgs::msg::PoseStamped rectified_pose_;
   geometry_msgs::msg::Pose global_ref_pose;
   geometry_msgs::msg::TwistStamped global_ref_twist; // TODO:Review
 
   bool odom_only_;
   bool ground_truth_;
   bool sensor_fusion_;
+  bool rectified_localization_;
   bool start_run_;
 
   void getGlobalRefState();
@@ -104,6 +114,7 @@ private:
   std::string map_frame_;
   std::string odom_frame_;
   std::string baselink_frame_;
+  std::string frame_rectified_;
 
   void publishStateEstimation();
   geometry_msgs::msg::PoseStamped generatePoseStampedMsg(const rclcpp::Time &_timestamp);

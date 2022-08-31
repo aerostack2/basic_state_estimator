@@ -11,6 +11,7 @@ def generate_launch_description():
         DeclareLaunchArgument('odom_only', default_value='False'),
         DeclareLaunchArgument('ground_truth', default_value='False'),
         DeclareLaunchArgument('sensor_fusion', default_value='False'),
+        DeclareLaunchArgument('rectified_localization', default_value='False'),
         DeclareLaunchArgument('base_frame', default_value='base_link'),
         Node(
             package='basic_state_estimator',
@@ -22,8 +23,10 @@ def generate_launch_description():
                 {'use_sim_time': LaunchConfiguration('use_sim_time')},
                 {'ground_truth': LaunchConfiguration('ground_truth')},
                 {'sensor_fusion': LaunchConfiguration('sensor_fusion')},
+                {'rectified_localization': LaunchConfiguration('rectified_localization')},
                 {'base_frame': LaunchConfiguration('base_frame')}],
             output='screen',
-            emulate_tty=True
+            emulate_tty=True,
+            remappings=[("rectified_localization/pose","global_localization/pose")]
         )
     ])
