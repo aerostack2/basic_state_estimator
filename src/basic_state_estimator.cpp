@@ -59,13 +59,17 @@ void BasicStateEstimator::run()
     //TODO: Search the tf with the same frames
     try
     {
-      std::string rectified_frame = baselink_frame_;
-      auto pose_transform = tf_buffer_->lookupTransform(frame_rectified_tf_.header.frame_id, rectified_frame, tf2::TimePointZero);
-      if (pose_transform.header.frame_id == frame_rectified_tf_.header.frame_id && pose_transform.child_frame_id == rectified_frame)
+      // std::string rectified_frame = baselink_frame_; frame_rectified_tf_.child_frame_id
+      std::string ref_frame = "earth";
+      auto pose_transform = tf_buffer_->lookupTransform(ref_frame, frame_rectified_tf_.child_frame_id, tf2::TimePointZero);
+      if (pose_transform.header.frame_id == ref_frame && pose_transform.child_frame_id == frame_rectified_tf_.child_frame_id)
       {
         ref2ref_rectified_tf_.header.frame_id = frame_rectified_tf_.header.frame_id;
-        ref2ref_rectified_tf_.child_frame_id = frame_rectified_tf_.child_frame_id;
+        ref2ref_rectified_tf_.child_frame_id = ref_frame;
         updateRefTfRectification(frame_rectified_tf_.transform, pose_transform.transform);
+      }
+      else{
+        RCLCPP_WARN(get_logger(),"Tranformation nod found: %s - %s", ref_frame.c_str(), frame_rectified_tf_.child_frame_id.c_str());
       }
     }
     catch (tf2::TransformException &ex)
@@ -170,7 +174,7 @@ void BasicStateEstimator::setupNode()
 
 void BasicStateEstimator::setupTfTree()
 {
-  {
+  // {
   // std::string base_frame;
   // this->get_parameter("base_frame", base_frame);
   // this->get_parameter("odom_only", odom_only_);
@@ -219,7 +223,7 @@ void BasicStateEstimator::setupTfTree()
   // {
   //   baselink_frame_ = generateTfName(ns, base_frame);
   // }
-  }
+  // }
 
   tf2_fix_transforms_.clear();
 
@@ -248,8 +252,8 @@ void BasicStateEstimator::setupTfTree()
     frame_rectified_tf_.child_frame_id = "";
     frame_rectified_tf_.transform.rotation.w = 1.0f;
 
-    RCLCPP_INFO(get_logger(), "Waiting for rectification frame info");
-    RCLCPP_INFO(get_logger(), "%s -> %s", frame_rectified_tf_.header.frame_id.c_str(), frame_rectified_tf_.child_frame_id.c_str());
+    RCLCPP_INFO(get_logger(), "Expecting rectification info");
+    // RCLCPP_INFO(get_logger(), "%s -> %s", frame_rectified_tf_.header.frame_id.c_str(), frame_rectified_tf_.child_frame_id.c_str());
   }
 
   start_run_ = false;
@@ -363,8 +367,7 @@ void BasicStateEstimator::getGlobalRefState()
   }
   catch (tf2::TransformException &ex)
   {
-    RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
-                ex.what()); // Print exception which was caught
+    RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n", ex.what()); // Print exception which was caught
   }
 
   if (odom_only_)
@@ -484,7 +487,8 @@ void BasicStateEstimator::gtTwistCallback(const geometry_msgs::msg::TwistStamped
 void BasicStateEstimator::rectPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg)
 {
   frame_rectified_tf_.header.frame_id = _msg->header.frame_id;
-  frame_rectified_tf_.child_frame_id = _msg->header.frame_id + "_rectified";
+  std::string rect_frame = frame_rectified_tf_.header.frame_id;
+  frame_rectified_tf_.child_frame_id = baselink_frame_;
   frame_rectified_tf_.transform.translation.x = _msg->pose.position.x;
   frame_rectified_tf_.transform.translation.y = _msg->pose.position.y;
   frame_rectified_tf_.transform.translation.z = _msg->pose.position.z;
@@ -493,7 +497,8 @@ void BasicStateEstimator::rectPoseCallback(const geometry_msgs::msg::PoseStamped
   frame_rectified_tf_.transform.rotation.z = _msg->pose.orientation.z;
   frame_rectified_tf_.transform.rotation.w = _msg->pose.orientation.w;
 
-  RCLCPP_INFO_ONCE(get_logger(), "Updated: %s -> %s", frame_rectified_tf_.header.frame_id.c_str(), frame_rectified_tf_.child_frame_id.c_str());
+  RCLCPP_INFO_ONCE(get_logger(), "Received pose %s -> %s", frame_rectified_tf_.header.frame_id.c_str(), frame_rectified_tf_.child_frame_id.c_str());
+  RCLCPP_INFO_ONCE(get_logger(), "Updated: Added %s", frame_rectified_tf_.header.frame_id.c_str());
   start_run_ = true;
 }
 
