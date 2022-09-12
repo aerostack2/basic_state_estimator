@@ -359,6 +359,17 @@ void BasicStateEstimator::getGlobalRefState()
         tf_buffer_->lookupTransform(global_ref_frame_, baselink_frame_, tf2::TimePointZero);
     global_ref_pose.position.x = pose_transform.transform.translation.x;
     global_ref_pose.position.y = pose_transform.transform.translation.y;
+
+    if (filter_height_)
+    {
+      static double offset = 0.0;
+      double height_dif = global_ref_pose.position.z - pose_transform.transform.translation.z;
+      if (height_dif > height_dif_threshold_)
+      {
+        offset += height_dif;
+      }
+      global_ref_pose.position.z = pose_transform.transform.translation.z + offset;
+    }
     global_ref_pose.position.z = pose_transform.transform.translation.z;
     global_ref_pose.orientation.x = pose_transform.transform.rotation.x;
     global_ref_pose.orientation.y = pose_transform.transform.rotation.y;

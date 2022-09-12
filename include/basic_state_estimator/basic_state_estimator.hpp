@@ -107,6 +107,8 @@ private:
   bool sensor_fusion_;
   bool rectified_localization_;
   bool start_run_;
+  bool filter_height_ = true;
+  double height_dif_threshold_ = 0.1;
 
   void getGlobalRefState();
 
