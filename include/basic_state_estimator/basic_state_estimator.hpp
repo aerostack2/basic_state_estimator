@@ -52,6 +52,8 @@
 #include "as2_core/node.hpp"
 #include "as2_core/tf_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include <deque>
+#include <iostream>
 
 #define FRAME_RECTIFIED_TOPIC "rectified_localization/pose"
 
@@ -108,7 +110,7 @@ private:
   bool rectified_localization_;
   bool start_run_;
   bool filter_height_ = true;
-  double height_dif_threshold_ = 0.1;
+  double height_dif_threshold_ = 0.08;
 
   void getGlobalRefState();
 

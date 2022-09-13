@@ -359,18 +359,44 @@ void BasicStateEstimator::getGlobalRefState()
         tf_buffer_->lookupTransform(global_ref_frame_, baselink_frame_, tf2::TimePointZero);
     global_ref_pose.position.x = pose_transform.transform.translation.x;
     global_ref_pose.position.y = pose_transform.transform.translation.y;
-
-    if (filter_height_)
+    static double offset = 0.0;
+    static bool take_off = false;
+    double height_filtered = pose_transform.transform.translation.z + offset;
+    double height_send = height_filtered;
+    if (pose_transform.transform.translation.z > 0.9 && !take_off)
     {
-      static double offset = 0.0;
-      double height_dif = global_ref_pose.position.z - pose_transform.transform.translation.z;
-      if (height_dif > height_dif_threshold_)
-      {
-        offset += height_dif;
-      }
-      global_ref_pose.position.z = pose_transform.transform.translation.z + offset;
+      take_off = true;
     }
-    global_ref_pose.position.z = pose_transform.transform.translation.z;
+
+    if (filter_height_ && take_off)
+    {
+      static std::deque<double> height_buffer;
+      if (height_buffer.size() > 30)
+      {
+        height_buffer.pop_front();
+        double height_dif = height_buffer.at(0) - height_filtered;
+        if (abs(height_dif) > height_dif_threshold_)
+        {
+          // RCLCPP_INFO(get_logger(), "Height diff: %f", height_dif);
+          offset += height_dif;
+          height_buffer.clear();
+        }
+        else
+        {
+          double alpha = 0.2;
+          offset = (1 - alpha) * offset;
+        }
+        // RCLCPP_INFO(this->get_logger(), "Height offset: %f", offset);
+        height_filtered = pose_transform.transform.translation.z + offset;
+      }
+      height_buffer.push_back(height_filtered);
+      height_send = height_buffer.at(0);
+    }
+    RCLCPP_INFO(this->get_logger(), "Recevied: %f", pose_transform.transform.translation.z);
+    RCLCPP_INFO(this->get_logger(), "Offset: %f", offset);
+    RCLCPP_INFO(this->get_logger(), "Send: %f \n", height_send);
+    global_ref_pose.position.z = height_send;
+    // global_ref_pose.position.z = pose_transform.transform.translation.z + offset;
     global_ref_pose.orientation.x = pose_transform.transform.rotation.x;
     global_ref_pose.orientation.y = pose_transform.transform.rotation.y;
     global_ref_pose.orientation.z = pose_transform.transform.rotation.z;
