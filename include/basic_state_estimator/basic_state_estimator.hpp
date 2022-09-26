@@ -55,8 +55,7 @@
 
 #define FRAME_RECTIFIED_TOPIC "rectified_localization/pose"
 
-class BasicStateEstimator : public as2::Node
-{
+class BasicStateEstimator : public as2::Node {
 public:
   BasicStateEstimator();
 
@@ -100,7 +99,7 @@ private:
   geometry_msgs::msg::TwistStamped gt_twist_;
   geometry_msgs::msg::PoseStamped rectified_pose_;
   geometry_msgs::msg::Pose global_ref_pose;
-  geometry_msgs::msg::TwistStamped global_ref_twist; // TODO:Review
+  geometry_msgs::msg::TwistStamped global_ref_twist;  // TODO:Review
 
   bool odom_only_;
   bool ground_truth_;
@@ -128,4 +127,4 @@ private:
   CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override;
 };
 
-#endif // BASIC_STATE_ESTIMATOR_HPP_
+#endif  // BASIC_STATE_ESTIMATOR_HPP_
