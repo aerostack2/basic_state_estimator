@@ -145,14 +145,14 @@ void BasicStateEstimator::setupNode() {
 
   std::string ns    = this->get_namespace();
   global_ref_frame_ = "earth";
-  map_frame_        = generateTfName(ns, "map");
-  odom_frame_       = generateTfName(ns, "odom");
+  map_frame_        = as2::tf::generateTfName(ns, "map");
+  odom_frame_       = as2::tf::generateTfName(ns, "odom");
   if (base_frame == "") {
     baselink_frame_ = ns.substr(1, ns.length());
     RCLCPP_WARN(get_logger(), "NO BASE FRAME SPECIFIED , USING DEFAULT: %s",
                 baselink_frame_.c_str());
   } else {
-    baselink_frame_ = generateTfName(ns, base_frame);
+    baselink_frame_ = as2::tf::generateTfName(ns, base_frame);
   }
 }
 
@@ -195,8 +195,8 @@ void BasicStateEstimator::setupTfTree() {
   // global reference to drone reference
   // std::string ns = this->get_namespace();
   // global_ref_frame_ = "earth";
-  // map_frame_ = generateTfName(ns, "map");
-  // odom_frame_ = generateTfName(ns, "odom");
+  // map_frame_ = as2::tf::generateTfName(ns, "map");
+  // odom_frame_ = as2::tf::generateTfName(ns, "odom");
   // if (base_frame == "")
   // {
   //   baselink_frame_ = ns.substr(1, ns.length());
@@ -205,7 +205,7 @@ void BasicStateEstimator::setupTfTree() {
   // }
   // else
   // {
-  //   baselink_frame_ = generateTfName(ns, base_frame);
+  //   baselink_frame_ = as2::tf::generateTfName(ns, base_frame);
   // }
   // }
 
@@ -251,7 +251,7 @@ void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
   // TODO: Get starting pose
 
   // Default
-  tf2_fix_transforms_.emplace_back(getTransformation(_global_frame, _map, 0, 0, 0, 0, 0, 0));
+  tf2_fix_transforms_.emplace_back(as2::tf::getTransformation(_global_frame, _map, 0, 0, 0, 0, 0, 0));
 }
 
 void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::Transform &_odom2baselink,
@@ -362,7 +362,7 @@ void BasicStateEstimator::getGlobalRefState() {
     Eigen::Vector3d odom_linear_twist(odom_twist_.twist.linear.x, odom_twist_.twist.linear.y,
                                       odom_twist_.twist.linear.z);
     Eigen::Vector3d global_linear_twist =
-        as2::FrameUtils::convertFLUtoENU(orientation, odom_linear_twist);
+        as2::frame::convertFLUtoENU(orientation, odom_linear_twist);
     global_ref_twist.twist.linear.x = global_linear_twist.x();
     global_ref_twist.twist.linear.y = global_linear_twist.y();
     global_ref_twist.twist.linear.z = global_linear_twist.z();
