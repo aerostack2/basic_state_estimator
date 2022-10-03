@@ -35,6 +35,7 @@
  ********************************************************************************/
 
 #include "basic_state_estimator.hpp"
+#include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
 
 BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") {
   this->declare_parameter<bool>("odom_only", false);
@@ -42,6 +43,7 @@ BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") 
   this->declare_parameter<bool>("sensor_fusion", false);
   this->declare_parameter<bool>("rectified_localization", false);
   this->declare_parameter<std::string>("base_frame", "base_link");
+  this->declare_parameter<std::string>("global_ref_frame", "global_ref_frame");
 }
 
 void BasicStateEstimator::run() {
@@ -49,30 +51,30 @@ void BasicStateEstimator::run() {
     return;
   }
   // TODO: SENSOR FUSION
-  geometry_msgs::msg::Transform map2odom_tf;
+  geometry_msgs::msg::TransformStamped map2odom_tf;
   map2odom_tf = calculateLocalization();
-  updateOdomTfDrift(odom2baselink_tf_.transform, map2odom_tf);
-  if (rectified_localization_) {
-    // TODO: Search the tf with the same frames
-    try {
-      // std::string rectified_frame = baselink_frame_; frame_rectified_tf_.child_frame_id
-      std::string ref_frame = "earth";
-      auto pose_transform   = tf_buffer_->lookupTransform(
-          ref_frame, frame_rectified_tf_.child_frame_id, tf2::TimePointZero);
-      if (pose_transform.header.frame_id == ref_frame &&
-          pose_transform.child_frame_id == frame_rectified_tf_.child_frame_id) {
-        ref2ref_rectified_tf_.header.frame_id = frame_rectified_tf_.header.frame_id;
-        ref2ref_rectified_tf_.child_frame_id  = ref_frame;
-        updateRefTfRectification(frame_rectified_tf_.transform, pose_transform.transform);
-      } else {
-        RCLCPP_WARN(get_logger(), "Tranformation nod found: %s - %s", ref_frame.c_str(),
-                    frame_rectified_tf_.child_frame_id.c_str());
-      }
-    } catch (tf2::TransformException &ex) {
-      RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
-                  ex.what());  // Print exception which was caught
-    }
-  }
+  updateOdomTfDrift(odom2baselink_tf_, map2odom_tf);
+  // if (rectified_localization_) {
+  //   // TODO: Search the tf with the same frames
+  //   try {
+  //     // std::string rectified_frame = baselink_frame_; frame_rectified_tf_.child_frame_id
+  //     std::string ref_frame = "earth";
+  //     auto pose_transform   = tf_buffer_->lookupTransform(
+  //         ref_frame, frame_rectified_tf_.child_frame_id, tf2::TimePointZero);
+  //     if (pose_transform.header.frame_id == ref_frame &&
+  //         pose_transform.child_frame_id == frame_rectified_tf_.child_frame_id) {
+  //       ref2ref_rectified_tf_.header.frame_id = frame_rectified_tf_.header.frame_id;
+  //       ref2ref_rectified_tf_.child_frame_id  = ref_frame;
+  //       updateRefTfRectification(frame_rectified_tf_.transform, pose_transform.transform);
+  //     } else {
+  //       RCLCPP_WARN(get_logger(), "Tranformation nod found: %s - %s", ref_frame.c_str(),
+  //                   frame_rectified_tf_.child_frame_id.c_str());
+  //     }
+  //   } catch (tf2::TransformException &ex) {
+  //     RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
+  //                 ex.what());  // Print exception which was caught
+  //   }
+  // }
   publishTfs();
   getGlobalRefState();
   publishStateEstimation();
@@ -86,7 +88,9 @@ void BasicStateEstimator::setupNode() {
   tf_listener_          = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   std::string base_frame;
+  std::string global_ref_frame;
   this->get_parameter("base_frame", base_frame);
+  this->get_parameter("global_ref_frame", global_ref_frame);
   this->get_parameter("odom_only", odom_only_);
   this->get_parameter("ground_truth", ground_truth_);
   this->get_parameter("sensor_fusion", sensor_fusion_);
@@ -131,12 +135,12 @@ void BasicStateEstimator::setupNode() {
         std::bind(&BasicStateEstimator::gtTwistCallback, this, std::placeholders::_1));
   }
 
-  if (rectified_localization_) {
-    rectified_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-        this->generate_global_name(FRAME_RECTIFIED_TOPIC),
-        as2_names::topics::sensor_measurements::qos,
-        std::bind(&BasicStateEstimator::rectPoseCallback, this, std::placeholders::_1));
-  }
+  // if (rectified_localization_) {
+  //   rectified_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+  //       this->generate_global_name(FRAME_RECTIFIED_TOPIC),
+  //       as2_names::topics::sensor_measurements::qos,
+  //       std::bind(&BasicStateEstimator::rectPoseCallback, this, std::placeholders::_1));
+  // }
 
   pose_estimated_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
       as2_names::topics::self_localization::pose, as2_names::topics::self_localization::qos);
@@ -144,7 +148,8 @@ void BasicStateEstimator::setupNode() {
       as2_names::topics::self_localization::twist, as2_names::topics::self_localization::qos);
 
   std::string ns    = this->get_namespace();
-  global_ref_frame_ = "earth";
+  RCLCPP_INFO(get_logger(), "Node namespace: %s", ns.c_str());
+  global_ref_frame_ = as2::tf::generateTfName(ns, global_ref_frame);
   map_frame_        = as2::tf::generateTfName(ns, "map");
   odom_frame_       = as2::tf::generateTfName(ns, "odom");
   if (base_frame == "") {
@@ -157,58 +162,6 @@ void BasicStateEstimator::setupNode() {
 }
 
 void BasicStateEstimator::setupTfTree() {
-  // {
-  // std::string base_frame;
-  // this->get_parameter("base_frame", base_frame);
-  // this->get_parameter("odom_only", odom_only_);
-  // this->get_parameter("ground_truth", ground_truth_);
-  // this->get_parameter("sensor_fusion", sensor_fusion_);
-  // this->get_parameter("rectified_localization", rectified_localization_);
-
-  // if (odom_only_)
-  // {
-  //   RCLCPP_INFO(get_logger(), "ODOM ONLY MODE");
-  // }
-
-  // if (ground_truth_)
-  // {
-  //   RCLCPP_INFO(get_logger(), "GROUND TRUTH MODE");
-  // }
-
-  // if (sensor_fusion_)
-  // {
-  //   RCLCPP_INFO(get_logger(), "SENSOR FUSION MODE");
-  // }
-
-  // if (!odom_only_ & !ground_truth_ & !sensor_fusion_)
-  // {
-  //   RCLCPP_ERROR(get_logger(), "NO ESTIMATION MODE ENABLED");
-  //   RCLCPP_ERROR(get_logger(), "DEFAULT: ODOM ONLY ACTIVATED");
-  //   odom_only_ = true;
-  // }
-
-  // if (rectified_localization_)
-  // {
-  //   RCLCPP_INFO(get_logger(), "RECTIFIED LOCALIZATION");
-  // }
-
-  // global reference to drone reference
-  // std::string ns = this->get_namespace();
-  // global_ref_frame_ = "earth";
-  // map_frame_ = as2::tf::generateTfName(ns, "map");
-  // odom_frame_ = as2::tf::generateTfName(ns, "odom");
-  // if (base_frame == "")
-  // {
-  //   baselink_frame_ = ns.substr(1, ns.length());
-  //   RCLCPP_WARN(get_logger(), "NO BASE FRAME SPECIFIED , USING DEFAULT: %s",
-  //   baselink_frame_.c_str());
-  // }
-  // else
-  // {
-  //   baselink_frame_ = as2::tf::generateTfName(ns, base_frame);
-  // }
-  // }
-
   tf2_fix_transforms_.clear();
 
   getStartingPose(global_ref_frame_, map_frame_);
@@ -229,21 +182,18 @@ void BasicStateEstimator::setupTfTree() {
   RCLCPP_INFO(get_logger(), "%s -> %s", odom2baselink_tf_.header.frame_id.c_str(),
               odom2baselink_tf_.child_frame_id.c_str());
 
-  if (rectified_localization_) {
-    // map2frame_rectified_tf_.header.frame_id = map_frame_;
-    frame_rectified_tf_.header.frame_id      = "";
-    frame_rectified_tf_.child_frame_id       = "";
-    frame_rectified_tf_.transform.rotation.w = 1.0f;
+  // if (rectified_localization_) {
+  //   // map2frame_rectified_tf_.header.frame_id = map_frame_;
+  //   frame_rectified_tf_.header.frame_id      = "";
+  //   frame_rectified_tf_.child_frame_id       = "";
+  //   frame_rectified_tf_.transform.rotation.w = 1.0f;
 
-    RCLCPP_INFO(get_logger(), "Expecting rectification info");
-    // RCLCPP_INFO(get_logger(), "%s -> %s", frame_rectified_tf_.header.frame_id.c_str(),
-    // frame_rectified_tf_.child_frame_id.c_str());
-  }
+  //   RCLCPP_INFO(get_logger(), "Expecting rectification info");
+  //   // RCLCPP_INFO(get_logger(), "%s -> %s", frame_rectified_tf_.header.frame_id.c_str(),
+  //   // frame_rectified_tf_.child_frame_id.c_str());
+  // }
 
   start_run_ = false;
-
-  // // init Tf tree
-  // publishTfs();
 }
 
 void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
@@ -251,20 +201,25 @@ void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
   // TODO: Get starting pose
 
   // Default
-  tf2_fix_transforms_.emplace_back(as2::tf::getTransformation(_global_frame, _map, 0, 0, 0, 0, 0, 0));
+  tf2_fix_transforms_.emplace_back(
+      as2::tf::getTransformation(_global_frame, _map, 0, 0, 0, 0, 0, 0));
 }
 
-void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::Transform &_odom2baselink,
-                                            const geometry_msgs::msg::Transform &_map2baselink) {
-  map2odom_tf_.transform.translation.x = _map2baselink.translation.x - _odom2baselink.translation.x;
-  map2odom_tf_.transform.translation.y = _map2baselink.translation.y - _odom2baselink.translation.y;
-  map2odom_tf_.transform.translation.z = _map2baselink.translation.z - _odom2baselink.translation.z;
+void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::TransformStamped &_odom2baselink,
+                                            const geometry_msgs::msg::TransformStamped &_map2baselink) {
+  map2odom_tf_.header.stamp = _map2baselink.header.stamp;
+  map2odom_tf_.header.frame_id = _map2baselink.header.frame_id;
+  map2odom_tf_.child_frame_id = _odom2baselink.header.frame_id;
+  
+  map2odom_tf_.transform.translation.x = _map2baselink.transform.translation.x - _odom2baselink.transform.translation.x;
+  map2odom_tf_.transform.translation.y = _map2baselink.transform.translation.y - _odom2baselink.transform.translation.y;
+  map2odom_tf_.transform.translation.z = _map2baselink.transform.translation.z - _odom2baselink.transform.translation.z;
 
   // Calculate relative orientation
-  tf2::Quaternion map2baselink_orientation(_map2baselink.rotation.x, _map2baselink.rotation.y,
-                                           _map2baselink.rotation.z, _map2baselink.rotation.w);
-  tf2::Quaternion odom2baselink_orientation(_odom2baselink.rotation.x, _odom2baselink.rotation.y,
-                                            _odom2baselink.rotation.z, _odom2baselink.rotation.w);
+  tf2::Quaternion map2baselink_orientation(_map2baselink.transform.rotation.x, _map2baselink.transform.rotation.y,
+                                           _map2baselink.transform.rotation.z, _map2baselink.transform.rotation.w);
+  tf2::Quaternion odom2baselink_orientation(_odom2baselink.transform.rotation.x, _odom2baselink.transform.rotation.y,
+                                            _odom2baselink.transform.rotation.z, _odom2baselink.transform.rotation.w);
   tf2::Quaternion map2odom_orientation =
       map2baselink_orientation * tf2::inverse(odom2baselink_orientation);
 
@@ -277,43 +232,53 @@ void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::Transform 
 void BasicStateEstimator::updateRefTfRectification(
     const geometry_msgs::msg::Transform &_frame_rectified_tf,
     const geometry_msgs::msg::Transform &_ref2frame_rectified_tf) {
-  ref2ref_rectified_tf_.transform.translation.x =
-      _ref2frame_rectified_tf.translation.x - _frame_rectified_tf.translation.x;
-  ref2ref_rectified_tf_.transform.translation.y =
-      _ref2frame_rectified_tf.translation.y - _frame_rectified_tf.translation.y;
-  ref2ref_rectified_tf_.transform.translation.z =
-      _ref2frame_rectified_tf.translation.z - _frame_rectified_tf.translation.z;
+  // ref2ref_rectified_tf_.transform.translation.x =
+  //     _ref2frame_rectified_tf.translation.x - _frame_rectified_tf.translation.x;
+  // ref2ref_rectified_tf_.transform.translation.y =
+  //     _ref2frame_rectified_tf.translation.y - _frame_rectified_tf.translation.y;
+  // ref2ref_rectified_tf_.transform.translation.z =
+  //     _ref2frame_rectified_tf.translation.z - _frame_rectified_tf.translation.z;
 
-  // Calculate relative orientation
-  tf2::Quaternion ref2frame_rectified_orientation(
-      _ref2frame_rectified_tf.rotation.x, _ref2frame_rectified_tf.rotation.y,
-      _ref2frame_rectified_tf.rotation.z, _ref2frame_rectified_tf.rotation.w);
-  tf2::Quaternion ref2ref_rectified_(_frame_rectified_tf.rotation.x, _frame_rectified_tf.rotation.y,
-                                     _frame_rectified_tf.rotation.z,
-                                     _frame_rectified_tf.rotation.w);
-  tf2::Quaternion ref2ref_rectified_orientation =
-      ref2frame_rectified_orientation * tf2::inverse(ref2ref_rectified_);
+  // // Calculate relative orientation
+  // tf2::Quaternion ref2frame_rectified_orientation(
+  //     _ref2frame_rectified_tf.rotation.x, _ref2frame_rectified_tf.rotation.y,
+  //     _ref2frame_rectified_tf.rotation.z, _ref2frame_rectified_tf.rotation.w);
+  // tf2::Quaternion ref2ref_rectified_(_frame_rectified_tf.rotation.x,
+  // _frame_rectified_tf.rotation.y,
+  //                                    _frame_rectified_tf.rotation.z,
+  //                                    _frame_rectified_tf.rotation.w);
+  // tf2::Quaternion ref2ref_rectified_orientation =
+  //     ref2frame_rectified_orientation * tf2::inverse(ref2ref_rectified_);
 
-  ref2ref_rectified_tf_.transform.rotation.x = ref2ref_rectified_orientation.x();
-  ref2ref_rectified_tf_.transform.rotation.y = ref2ref_rectified_orientation.y();
-  ref2ref_rectified_tf_.transform.rotation.z = ref2ref_rectified_orientation.z();
-  ref2ref_rectified_tf_.transform.rotation.w = ref2ref_rectified_orientation.w();
+  // ref2ref_rectified_tf_.transform.rotation.x = ref2ref_rectified_orientation.x();
+  // ref2ref_rectified_tf_.transform.rotation.y = ref2ref_rectified_orientation.y();
+  // ref2ref_rectified_tf_.transform.rotation.z = ref2ref_rectified_orientation.z();
+  // ref2ref_rectified_tf_.transform.rotation.w = ref2ref_rectified_orientation.w();
 }
 
-geometry_msgs::msg::Transform BasicStateEstimator::calculateLocalization() {
-  geometry_msgs::msg::Transform map2baselink;
+geometry_msgs::msg::TransformStamped BasicStateEstimator::calculateLocalization() {
+  geometry_msgs::msg::TransformStamped map2baselink;
   if (odom_only_) {
-    map2baselink = odom2baselink_tf_.transform;
+    map2baselink.header.stamp    = odom2baselink_tf_.header.stamp;
+    map2baselink.header.frame_id = map_frame_;
+    map2baselink.child_frame_id  = odom2baselink_tf_.child_frame_id;
+    map2baselink.transform       = odom2baselink_tf_.transform;
   }
   if (ground_truth_) {
-    map2baselink.translation.x  = gt_pose_.position.x;
-    map2baselink.translation.y  = gt_pose_.position.y;
-    map2baselink.translation.z  = gt_pose_.position.z;
-    map2baselink.rotation.x     = gt_pose_.orientation.x;
-    map2baselink.rotation.y     = gt_pose_.orientation.y;
-    map2baselink.rotation.z     = gt_pose_.orientation.z;
-    map2baselink.rotation.w     = gt_pose_.orientation.w;
-    odom2baselink_tf_.transform = map2baselink;
+    map2baselink.header.stamp            = gt_pose_stamped_.header.stamp;
+    map2baselink.child_frame_id          = map_frame_;
+    map2baselink.transform.translation.x = gt_pose_stamped_.pose.position.x;
+    map2baselink.transform.translation.y = gt_pose_stamped_.pose.position.y;
+    map2baselink.transform.translation.z = gt_pose_stamped_.pose.position.z;
+    map2baselink.transform.rotation.x    = gt_pose_stamped_.pose.orientation.x;
+    map2baselink.transform.rotation.y    = gt_pose_stamped_.pose.orientation.y;
+    map2baselink.transform.rotation.z    = gt_pose_stamped_.pose.orientation.z;
+    map2baselink.transform.rotation.w    = gt_pose_stamped_.pose.orientation.w;
+
+    odom2baselink_tf_ = map2baselink;
+
+    map2baselink.header.frame_id      = map_frame_;
+    odom2baselink_tf_.header.frame_id = odom_frame_;
   }
 
   // if (rectified_localization_)
@@ -351,7 +316,8 @@ void BasicStateEstimator::getGlobalRefState() {
   }
 
   if (odom_only_) {
-    global_ref_twist.header.frame_id = global_ref_frame_;
+    global_ref_twist.header.frame_id = odom_twist_.header.frame_id;
+    global_ref_twist.header.stamp    = odom_twist_.header.stamp;
     global_ref_twist.twist.angular   = odom_twist_.twist.angular;
     tf2::Quaternion orientation(global_ref_pose.orientation.x, global_ref_pose.orientation.y,
                                 global_ref_pose.orientation.z, global_ref_pose.orientation.w);
@@ -369,7 +335,7 @@ void BasicStateEstimator::getGlobalRefState() {
   }
 
   if (ground_truth_) {
-    global_ref_twist = gt_twist_;
+    global_ref_twist = gt_twist_stamped_;
   }
 
   if (sensor_fusion_) {  // TODO: Sensor fusion
@@ -379,7 +345,7 @@ void BasicStateEstimator::getGlobalRefState() {
 // PUBLISH //
 
 void BasicStateEstimator::publishTfs() {
-  rclcpp::Time timestamp = this->get_clock()->now();
+  rclcpp::Time timestamp = last_info_time_;
   for (geometry_msgs::msg::TransformStamped &transform : tf2_fix_transforms_) {
     transform.header.stamp = timestamp;
     tfstatic_broadcaster_->sendTransform(transform);
@@ -396,7 +362,8 @@ void BasicStateEstimator::publishTfs() {
 }
 
 void BasicStateEstimator::publishStateEstimation() {
-  rclcpp::Time timestamp = this->get_clock()->now();
+  // rclcpp::Time timestamp = this->get_clock()->now();
+  rclcpp::Time timestamp = last_info_time_;
   pose_estimated_pub_->publish(generatePoseStampedMsg(timestamp));
   twist_estimated_pub_->publish(generateTwistStampedMsg(timestamp));
 }
@@ -404,6 +371,7 @@ void BasicStateEstimator::publishStateEstimation() {
 geometry_msgs::msg::PoseStamped BasicStateEstimator::generatePoseStampedMsg(
     const rclcpp::Time &_timestamp) {
   geometry_msgs::msg::PoseStamped pose_stamped;
+  // pose_stamped.header.stamp     = _timestamp;
   pose_stamped.header.stamp     = _timestamp;
   pose_stamped.header.frame_id  = global_ref_frame_;
   pose_stamped.pose.position    = global_ref_pose.position;
@@ -425,7 +393,9 @@ geometry_msgs::msg::TwistStamped BasicStateEstimator::generateTwistStampedMsg(
 
 void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr _msg) {
   // rclcpp::Time timestamp = this->get_clock()->now();
-  // odom2baselink_tf_.header.stamp = timestamp;
+  odom2baselink_tf_.header.frame_id         = _msg->header.frame_id;
+  odom2baselink_tf_.child_frame_id          = _msg->child_frame_id;
+  odom2baselink_tf_.header.stamp            = _msg->header.stamp;
   odom2baselink_tf_.transform.translation.x = _msg->pose.pose.position.x;
   odom2baselink_tf_.transform.translation.y = _msg->pose.pose.position.y;
   odom2baselink_tf_.transform.translation.z = _msg->pose.pose.position.z;
@@ -434,45 +404,52 @@ void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr 
   odom2baselink_tf_.transform.rotation.z    = _msg->pose.pose.orientation.z;
   odom2baselink_tf_.transform.rotation.w    = _msg->pose.pose.orientation.w;
 
-  odom_twist_.header.frame_id = odom_frame_;
+  odom_twist_.header.frame_id = _msg->child_frame_id;
+  odom_twist_.header.stamp    = _msg->header.stamp;
   odom_twist_.twist.linear    = _msg->twist.twist.linear;
   odom_twist_.twist.angular   = _msg->twist.twist.angular;
 
+  last_info_time_ = _msg->header.stamp;
   start_run_ = true;
 }
 
 void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {
-  gt_pose_   = _msg->pose;
-  start_run_ = true;
+  gt_pose_stamped_.header = _msg->header;
+  gt_pose_stamped_.pose   = _msg->pose;
+
+  last_info_time_ = _msg->header.stamp;
+  start_run_              = true;
 }
 
 void BasicStateEstimator::gtTwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr _msg) {
-  gt_twist_.header.frame_id = _msg->header.frame_id;
-  gt_twist_.twist           = _msg->twist;
-  start_run_                = true;
+  gt_twist_stamped_.header = _msg->header;
+  gt_twist_stamped_.twist  = _msg->twist;
+  
+  last_info_time_ = _msg->header.stamp;
+  start_run_               = true;
 }
 
 void BasicStateEstimator::rectPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {
-  frame_rectified_tf_.header.frame_id         = _msg->header.frame_id;
-  std::string rect_frame                      = frame_rectified_tf_.header.frame_id;
-  frame_rectified_tf_.child_frame_id          = baselink_frame_;
-  frame_rectified_tf_.transform.translation.x = _msg->pose.position.x;
-  frame_rectified_tf_.transform.translation.y = _msg->pose.position.y;
-  frame_rectified_tf_.transform.translation.z = _msg->pose.position.z;
-  frame_rectified_tf_.transform.rotation.x    = _msg->pose.orientation.x;
-  frame_rectified_tf_.transform.rotation.y    = _msg->pose.orientation.y;
-  frame_rectified_tf_.transform.rotation.z    = _msg->pose.orientation.z;
-  frame_rectified_tf_.transform.rotation.w    = _msg->pose.orientation.w;
+  // frame_rectified_tf_.header.frame_id         = _msg->header.frame_id;
+  // std::string rect_frame                      = frame_rectified_tf_.header.frame_id;
+  // frame_rectified_tf_.child_frame_id          = baselink_frame_;
+  // frame_rectified_tf_.transform.translation.x = _msg->pose.position.x;
+  // frame_rectified_tf_.transform.translation.y = _msg->pose.position.y;
+  // frame_rectified_tf_.transform.translation.z = _msg->pose.position.z;
+  // frame_rectified_tf_.transform.rotation.x    = _msg->pose.orientation.x;
+  // frame_rectified_tf_.transform.rotation.y    = _msg->pose.orientation.y;
+  // frame_rectified_tf_.transform.rotation.z    = _msg->pose.orientation.z;
+  // frame_rectified_tf_.transform.rotation.w    = _msg->pose.orientation.w;
 
-  RCLCPP_INFO_ONCE(get_logger(), "Received pose %s -> %s",
-                   frame_rectified_tf_.header.frame_id.c_str(),
-                   frame_rectified_tf_.child_frame_id.c_str());
-  RCLCPP_INFO_ONCE(get_logger(), "Updated: Added %s", frame_rectified_tf_.header.frame_id.c_str());
-  start_run_ = true;
+  // RCLCPP_INFO_ONCE(get_logger(), "Received pose %s -> %s",
+  //                  frame_rectified_tf_.header.frame_id.c_str(),
+  //                  frame_rectified_tf_.child_frame_id.c_str());
+  // RCLCPP_INFO_ONCE(get_logger(), "Updated: Added %s",
+  // frame_rectified_tf_.header.frame_id.c_str()); start_run_ = true;
 }
 
 void BasicStateEstimator::cleanupNode(){
-    // TODO: CLeanup Node
+    // TODO: Cleanup Node
 };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;

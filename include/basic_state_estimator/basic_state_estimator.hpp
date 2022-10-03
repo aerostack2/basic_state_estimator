@@ -64,11 +64,11 @@ public:
   void setupTfTree();
   void run();
   void getStartingPose(const std::string &_earth_frame, const std::string &_map);
-  void updateOdomTfDrift(const geometry_msgs::msg::Transform &_odom2baselink,
-                         const geometry_msgs::msg::Transform &_map2baselink);
+  void updateOdomTfDrift(const geometry_msgs::msg::TransformStamped &_odom2baselink,
+                         const geometry_msgs::msg::TransformStamped &_map2baselink);
   void updateRefTfRectification(const geometry_msgs::msg::Transform &_frame_rectified_tf_,
                                 const geometry_msgs::msg::Transform &_ref2frame_rectified_tf_);
-  geometry_msgs::msg::Transform calculateLocalization();
+  geometry_msgs::msg::TransformStamped calculateLocalization();
   void publishTfs();
 
 private:
@@ -95,8 +95,8 @@ private:
   geometry_msgs::msg::TransformStamped frame_rectified_tf_;
   geometry_msgs::msg::TransformStamped ref2ref_rectified_tf_;
   geometry_msgs::msg::TwistStamped odom_twist_;
-  geometry_msgs::msg::Pose gt_pose_;
-  geometry_msgs::msg::TwistStamped gt_twist_;
+  geometry_msgs::msg::PoseStamped gt_pose_stamped_;
+  geometry_msgs::msg::TwistStamped gt_twist_stamped_;
   geometry_msgs::msg::PoseStamped rectified_pose_;
   geometry_msgs::msg::Pose global_ref_pose;
   geometry_msgs::msg::TwistStamped global_ref_twist;  // TODO:Review
@@ -118,6 +118,8 @@ private:
   void publishStateEstimation();
   geometry_msgs::msg::PoseStamped generatePoseStampedMsg(const rclcpp::Time &_timestamp);
   geometry_msgs::msg::TwistStamped generateTwistStampedMsg(const rclcpp::Time &_timestamp);
+
+  rclcpp::Time last_info_time_;
 
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
