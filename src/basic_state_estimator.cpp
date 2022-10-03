@@ -345,25 +345,25 @@ void BasicStateEstimator::getGlobalRefState() {
 // PUBLISH //
 
 void BasicStateEstimator::publishTfs() {
-  rclcpp::Time timestamp = last_info_time_;
   for (geometry_msgs::msg::TransformStamped &transform : tf2_fix_transforms_) {
-    transform.header.stamp = timestamp;
+    // transform.header.stamp = tf_publish_time_;
     tfstatic_broadcaster_->sendTransform(transform);
   }
-  map2odom_tf_.header.stamp = timestamp;
+  // map2odom_tf_.header.stamp = tf_publish_time_;
   tf_broadcaster_->sendTransform(map2odom_tf_);
-  odom2baselink_tf_.header.stamp = timestamp;
+  // odom2baselink_tf_.header.stamp = tf_publish_time_;
   tf_broadcaster_->sendTransform(odom2baselink_tf_);
-  if (rectified_localization_ &&
-      (ref2ref_rectified_tf_.header.frame_id != "" && ref2ref_rectified_tf_.child_frame_id != "")) {
-    ref2ref_rectified_tf_.header.stamp = timestamp;
-    tf_broadcaster_->sendTransform(ref2ref_rectified_tf_);
-  }
+  // if (rectified_localization_ &&
+  //     (ref2ref_rectified_tf_.header.frame_id != "" && ref2ref_rectified_tf_.child_frame_id != "")) {
+  //   ref2ref_rectified_tf_.header.stamp = tf_publish_time_;
+  //   tf_broadcaster_->sendTransform(ref2ref_rectified_tf_);
+  // }
+  tf_publish_time_ = odom2baselink_tf_.header.stamp;
 }
 
 void BasicStateEstimator::publishStateEstimation() {
   // rclcpp::Time timestamp = this->get_clock()->now();
-  rclcpp::Time timestamp = last_info_time_;
+  rclcpp::Time timestamp = tf_publish_time_;
   pose_estimated_pub_->publish(generatePoseStampedMsg(timestamp));
   twist_estimated_pub_->publish(generateTwistStampedMsg(timestamp));
 }

@@ -120,6 +120,7 @@ private:
   geometry_msgs::msg::TwistStamped generateTwistStampedMsg(const rclcpp::Time &_timestamp);
 
   rclcpp::Time last_info_time_;
+  rclcpp::Time tf_publish_time_;
 
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
