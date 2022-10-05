@@ -147,8 +147,8 @@ void BasicStateEstimator::setupNode() {
   twist_estimated_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
       as2_names::topics::self_localization::twist, as2_names::topics::self_localization::qos);
 
-  std::string ns    = this->get_namespace();
-  RCLCPP_INFO(get_logger(), "Node namespace: %s", ns.c_str());
+  std::string ns = this->get_namespace();
+  // RCLCPP_INFO(get_logger(), "Node namespace: %s", ns.c_str());
   global_ref_frame_ = as2::tf::generateTfName(ns, global_ref_frame);
   map_frame_        = as2::tf::generateTfName(ns, "map");
   odom_frame_       = as2::tf::generateTfName(ns, "odom");
@@ -165,6 +165,7 @@ void BasicStateEstimator::setupTfTree() {
   tf2_fix_transforms_.clear();
 
   getStartingPose(global_ref_frame_, map_frame_);
+  publishStaticTfs();
 
   // init map_2_odom
   map2odom_tf_.header.frame_id      = map_frame_;
@@ -205,21 +206,27 @@ void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
       as2::tf::getTransformation(_global_frame, _map, 0, 0, 0, 0, 0, 0));
 }
 
-void BasicStateEstimator::updateOdomTfDrift(const geometry_msgs::msg::TransformStamped &_odom2baselink,
-                                            const geometry_msgs::msg::TransformStamped &_map2baselink) {
-  map2odom_tf_.header.stamp = _map2baselink.header.stamp;
+void BasicStateEstimator::updateOdomTfDrift(
+    const geometry_msgs::msg::TransformStamped &_odom2baselink,
+    const geometry_msgs::msg::TransformStamped &_map2baselink) {
+  map2odom_tf_.header.stamp    = _map2baselink.header.stamp;
   map2odom_tf_.header.frame_id = _map2baselink.header.frame_id;
-  map2odom_tf_.child_frame_id = _odom2baselink.header.frame_id;
-  
-  map2odom_tf_.transform.translation.x = _map2baselink.transform.translation.x - _odom2baselink.transform.translation.x;
-  map2odom_tf_.transform.translation.y = _map2baselink.transform.translation.y - _odom2baselink.transform.translation.y;
-  map2odom_tf_.transform.translation.z = _map2baselink.transform.translation.z - _odom2baselink.transform.translation.z;
+  map2odom_tf_.child_frame_id  = _odom2baselink.header.frame_id;
+
+  map2odom_tf_.transform.translation.x =
+      _map2baselink.transform.translation.x - _odom2baselink.transform.translation.x;
+  map2odom_tf_.transform.translation.y =
+      _map2baselink.transform.translation.y - _odom2baselink.transform.translation.y;
+  map2odom_tf_.transform.translation.z =
+      _map2baselink.transform.translation.z - _odom2baselink.transform.translation.z;
 
   // Calculate relative orientation
-  tf2::Quaternion map2baselink_orientation(_map2baselink.transform.rotation.x, _map2baselink.transform.rotation.y,
-                                           _map2baselink.transform.rotation.z, _map2baselink.transform.rotation.w);
-  tf2::Quaternion odom2baselink_orientation(_odom2baselink.transform.rotation.x, _odom2baselink.transform.rotation.y,
-                                            _odom2baselink.transform.rotation.z, _odom2baselink.transform.rotation.w);
+  tf2::Quaternion map2baselink_orientation(
+      _map2baselink.transform.rotation.x, _map2baselink.transform.rotation.y,
+      _map2baselink.transform.rotation.z, _map2baselink.transform.rotation.w);
+  tf2::Quaternion odom2baselink_orientation(
+      _odom2baselink.transform.rotation.x, _odom2baselink.transform.rotation.y,
+      _odom2baselink.transform.rotation.z, _odom2baselink.transform.rotation.w);
   tf2::Quaternion map2odom_orientation =
       map2baselink_orientation * tf2::inverse(odom2baselink_orientation);
 
@@ -266,7 +273,7 @@ geometry_msgs::msg::TransformStamped BasicStateEstimator::calculateLocalization(
   }
   if (ground_truth_) {
     map2baselink.header.stamp            = gt_pose_stamped_.header.stamp;
-    map2baselink.child_frame_id          = map_frame_;
+    map2baselink.child_frame_id          = baselink_frame_;
     map2baselink.transform.translation.x = gt_pose_stamped_.pose.position.x;
     map2baselink.transform.translation.y = gt_pose_stamped_.pose.position.y;
     map2baselink.transform.translation.z = gt_pose_stamped_.pose.position.z;
@@ -345,20 +352,23 @@ void BasicStateEstimator::getGlobalRefState() {
 // PUBLISH //
 
 void BasicStateEstimator::publishTfs() {
-  for (geometry_msgs::msg::TransformStamped &transform : tf2_fix_transforms_) {
-    // transform.header.stamp = tf_publish_time_;
-    tfstatic_broadcaster_->sendTransform(transform);
-  }
   // map2odom_tf_.header.stamp = tf_publish_time_;
   tf_broadcaster_->sendTransform(map2odom_tf_);
   // odom2baselink_tf_.header.stamp = tf_publish_time_;
   tf_broadcaster_->sendTransform(odom2baselink_tf_);
   // if (rectified_localization_ &&
-  //     (ref2ref_rectified_tf_.header.frame_id != "" && ref2ref_rectified_tf_.child_frame_id != "")) {
+  //     (ref2ref_rectified_tf_.header.frame_id != "" && ref2ref_rectified_tf_.child_frame_id !=
+  //     "")) {
   //   ref2ref_rectified_tf_.header.stamp = tf_publish_time_;
   //   tf_broadcaster_->sendTransform(ref2ref_rectified_tf_);
   // }
   tf_publish_time_ = odom2baselink_tf_.header.stamp;
+}
+
+void BasicStateEstimator::publishStaticTfs() {
+  for (geometry_msgs::msg::TransformStamped &transform : tf2_fix_transforms_) {
+    tfstatic_broadcaster_->sendTransform(transform);
+  }
 }
 
 void BasicStateEstimator::publishStateEstimation() {
@@ -410,7 +420,7 @@ void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr 
   odom_twist_.twist.angular   = _msg->twist.twist.angular;
 
   last_info_time_ = _msg->header.stamp;
-  start_run_ = true;
+  start_run_      = true;
 }
 
 void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {
@@ -418,15 +428,15 @@ void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::
   gt_pose_stamped_.pose   = _msg->pose;
 
   last_info_time_ = _msg->header.stamp;
-  start_run_              = true;
+  start_run_      = true;
 }
 
 void BasicStateEstimator::gtTwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr _msg) {
   gt_twist_stamped_.header = _msg->header;
   gt_twist_stamped_.twist  = _msg->twist;
-  
+
   last_info_time_ = _msg->header.stamp;
-  start_run_               = true;
+  start_run_      = true;
 }
 
 void BasicStateEstimator::rectPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {

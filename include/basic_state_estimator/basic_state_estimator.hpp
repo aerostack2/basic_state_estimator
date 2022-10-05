@@ -47,9 +47,9 @@
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-#include "as2_core/utils/frame_utils.hpp"
 #include "as2_core/names/topics.hpp"
 #include "as2_core/node.hpp"
+#include "as2_core/utils/frame_utils.hpp"
 #include "as2_core/utils/tf_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 
@@ -70,6 +70,7 @@ public:
                                 const geometry_msgs::msg::Transform &_ref2frame_rectified_tf_);
   geometry_msgs::msg::TransformStamped calculateLocalization();
   void publishTfs();
+  void publishStaticTfs();
 
 private:
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
