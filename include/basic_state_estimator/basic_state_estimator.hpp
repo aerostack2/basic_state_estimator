@@ -99,8 +99,8 @@ private:
   geometry_msgs::msg::PoseStamped gt_pose_stamped_;
   geometry_msgs::msg::TwistStamped gt_twist_stamped_;
   geometry_msgs::msg::PoseStamped rectified_pose_;
-  geometry_msgs::msg::Pose global_ref_pose;
-  geometry_msgs::msg::TwistStamped global_ref_twist;  // TODO:Review
+  geometry_msgs::msg::PoseStamped global_ref_pose_;
+  geometry_msgs::msg::TwistStamped global_ref_twist_;  // TODO:Review
 
   bool odom_only_;
   bool ground_truth_;
@@ -114,7 +114,10 @@ private:
   std::string map_frame_;
   std::string odom_frame_;
   std::string baselink_frame_;
+
   std::string frame_rectified_;
+  std::string frame_global_pose_;
+  std::string frame_global_twist_;
 
   void publishStateEstimation();
   geometry_msgs::msg::PoseStamped generatePoseStampedMsg(const rclcpp::Time &_timestamp);
