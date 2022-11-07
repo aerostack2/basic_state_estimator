@@ -310,11 +310,11 @@ geometry_msgs::msg::TransformStamped BasicStateEstimator::calculateLocalization(
 }
 
 void BasicStateEstimator::getGlobalRefState() {
+  using namespace std::chrono_literals;
   // Pose in the global frame
   try {
     auto pose_transform =
-        tf_buffer_->lookupTransform(frame_global_pose_, baselink_frame_, tf_publish_time_,
-                                    rclcpp::Duration::from_nanoseconds(50 * 1e6));
+        tf_buffer_->lookupTransform(frame_global_pose_, baselink_frame_, tf_publish_time_, 50ms);
     global_ref_pose_.header.frame_id    = frame_global_pose_;
     global_ref_pose_.header.stamp       = pose_transform.header.stamp;
     global_ref_pose_.pose.position.x    = pose_transform.transform.translation.x;
