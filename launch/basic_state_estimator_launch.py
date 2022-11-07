@@ -30,7 +30,7 @@ def generate_launch_description():
                 {'base_frame': LaunchConfiguration('base_frame')}],
             output='screen',
             emulate_tty=True,
-            remappings=[("ground_truth/pose","global_localization/pose")]
+            # remappings=[("ground_truth/pose","global_localization/pose")]
             # remappings=[("rectified_localization/pose","global_localization/pose")]
         )
     ])

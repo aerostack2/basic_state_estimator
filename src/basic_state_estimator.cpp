@@ -159,6 +159,9 @@ void BasicStateEstimator::setupNode() {
   } else {
     baselink_frame_ = as2::tf::generateTfName(ns, base_frame);
   }
+
+  frame_global_pose_  = global_ref_frame_;
+  frame_global_twist_ = baselink_frame_;
 }
 
 void BasicStateEstimator::setupTfTree() {
@@ -307,42 +310,75 @@ geometry_msgs::msg::TransformStamped BasicStateEstimator::calculateLocalization(
 }
 
 void BasicStateEstimator::getGlobalRefState() {
+  using namespace std::chrono_literals;
+  // Pose in the global frame
   try {
     auto pose_transform =
-        tf_buffer_->lookupTransform(global_ref_frame_, baselink_frame_, tf2::TimePointZero);
-    global_ref_pose.position.x    = pose_transform.transform.translation.x;
-    global_ref_pose.position.y    = pose_transform.transform.translation.y;
-    global_ref_pose.position.z    = pose_transform.transform.translation.z;
-    global_ref_pose.orientation.x = pose_transform.transform.rotation.x;
-    global_ref_pose.orientation.y = pose_transform.transform.rotation.y;
-    global_ref_pose.orientation.z = pose_transform.transform.rotation.z;
-    global_ref_pose.orientation.w = pose_transform.transform.rotation.w;
+        tf_buffer_->lookupTransform(frame_global_pose_, baselink_frame_, tf_publish_time_, 50ms);
+    global_ref_pose_.header.frame_id    = frame_global_pose_;
+    global_ref_pose_.header.stamp       = pose_transform.header.stamp;
+    global_ref_pose_.pose.position.x    = pose_transform.transform.translation.x;
+    global_ref_pose_.pose.position.y    = pose_transform.transform.translation.y;
+    global_ref_pose_.pose.position.z    = pose_transform.transform.translation.z;
+    global_ref_pose_.pose.orientation.x = pose_transform.transform.rotation.x;
+    global_ref_pose_.pose.orientation.y = pose_transform.transform.rotation.y;
+    global_ref_pose_.pose.orientation.z = pose_transform.transform.rotation.z;
+    global_ref_pose_.pose.orientation.w = pose_transform.transform.rotation.w;
+
   } catch (tf2::TransformException &ex) {
     RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
                 ex.what());  // Print exception which was caught
   }
 
+  // Twist in target frame
   if (odom_only_) {
-    global_ref_twist.header.frame_id = odom_twist_.header.frame_id;
-    global_ref_twist.header.stamp    = odom_twist_.header.stamp;
-    global_ref_twist.twist.angular   = odom_twist_.twist.angular;
-    tf2::Quaternion orientation(global_ref_pose.orientation.x, global_ref_pose.orientation.y,
-                                global_ref_pose.orientation.z, global_ref_pose.orientation.w);
+    if (odom_twist_.header.frame_id == frame_global_twist_) {
+      global_ref_twist_ = odom_twist_;
+    } else {
+      try {
+        auto twist_transform = tf_buffer_->lookupTransform(
+            frame_global_twist_, odom_twist_.header.frame_id, odom_twist_.header.stamp);
 
-    // odom2baselink_tf_.transform.rotation.x, odom2baselink_tf_.transform.rotation.y,
-    // odom2baselink_tf_.transform.rotation.z, odom2baselink_tf_.transform.rotation.w);
+        geometry_msgs::msg::Vector3Stamped odom_linear_twist;
+        odom_linear_twist.header = odom_twist_.header;
+        odom_linear_twist.vector = odom_twist_.twist.linear;
 
-    Eigen::Vector3d odom_linear_twist(odom_twist_.twist.linear.x, odom_twist_.twist.linear.y,
-                                      odom_twist_.twist.linear.z);
-    Eigen::Vector3d global_linear_twist =
-        as2::frame::convertFLUtoENU(orientation, odom_linear_twist);
-    global_ref_twist.twist.linear.x = global_linear_twist.x();
-    global_ref_twist.twist.linear.y = global_linear_twist.y();
-    global_ref_twist.twist.linear.z = global_linear_twist.z();
+        geometry_msgs::msg::Vector3Stamped global_linear_twist;
+        tf2::doTransform(odom_linear_twist, global_linear_twist, twist_transform);
+
+        // TODO: tranform angular velocity
+        // geometry_msgs::msg::Vector3Stamped odom_angular_twist;
+
+        global_ref_twist_.header        = global_linear_twist.header;
+        global_ref_twist_.twist.linear  = global_linear_twist.vector;
+        global_ref_twist_.twist.angular = odom_twist_.twist.angular;
+
+      } catch (tf2::TransformException &ex) {
+        RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
+                    ex.what());  // Print exception which was caught
+      }
+
+      // global_ref_twist.header.frame_id = odom_twist_.header.frame_id;
+      // global_ref_twist.header.stamp    = odom_twist_.header.stamp;
+      // global_ref_twist.twist.angular   = odom_twist_.twist.angular;
+      // tf2::Quaternion orientation(global_ref_pose.orientation.x, global_ref_pose.orientation.y,
+      //                             global_ref_pose.orientation.z, global_ref_pose.orientation.w);
+
+      // // odom2baselink_tf_.transform.rotation.x, odom2baselink_tf_.transform.rotation.y,
+      // // odom2baselink_tf_.transform.rotation.z, odom2baselink_tf_.transform.rotation.w);
+
+      // Eigen::Vector3d odom_linear_twist(odom_twist_.twist.linear.x, odom_twist_.twist.linear.y,
+      //                                   odom_twist_.twist.linear.z);
+      // Eigen::Vector3d global_linear_twist =
+      //     as2::frame::convertFLUtoENU(orientation, odom_linear_twist);
+      // global_ref_twist.twist.linear.x = global_linear_twist.x();
+      // global_ref_twist.twist.linear.y = global_linear_twist.y();
+      // global_ref_twist.twist.linear.z = global_linear_twist.z();
+    }
   }
 
   if (ground_truth_) {
-    global_ref_twist = gt_twist_stamped_;
+    global_ref_twist_ = gt_twist_stamped_;
   }
 
   if (sensor_fusion_) {  // TODO: Sensor fusion
@@ -383,9 +419,9 @@ geometry_msgs::msg::PoseStamped BasicStateEstimator::generatePoseStampedMsg(
   geometry_msgs::msg::PoseStamped pose_stamped;
   // pose_stamped.header.stamp     = _timestamp;
   pose_stamped.header.stamp     = _timestamp;
-  pose_stamped.header.frame_id  = global_ref_frame_;
-  pose_stamped.pose.position    = global_ref_pose.position;
-  pose_stamped.pose.orientation = global_ref_pose.orientation;
+  pose_stamped.header.frame_id  = global_ref_pose_.header.frame_id;
+  pose_stamped.pose.position    = global_ref_pose_.pose.position;
+  pose_stamped.pose.orientation = global_ref_pose_.pose.orientation;
   return pose_stamped;
 }
 
@@ -393,9 +429,9 @@ geometry_msgs::msg::TwistStamped BasicStateEstimator::generateTwistStampedMsg(
     const rclcpp::Time &_timestamp) {
   geometry_msgs::msg::TwistStamped twist_stamped;
   twist_stamped.header.stamp    = _timestamp;
-  twist_stamped.header.frame_id = global_ref_twist.header.frame_id;  // TODO:Review ref frame
-  twist_stamped.twist.linear    = global_ref_twist.twist.linear;
-  twist_stamped.twist.angular   = global_ref_twist.twist.angular;
+  twist_stamped.header.frame_id = global_ref_twist_.header.frame_id;  // TODO:Review ref frame
+  twist_stamped.twist.linear    = global_ref_twist_.twist.linear;
+  twist_stamped.twist.angular   = global_ref_twist_.twist.angular;
   return twist_stamped;
 }
 
