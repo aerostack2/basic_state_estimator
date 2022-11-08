@@ -43,6 +43,8 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
+#include <geometry_msgs/msg/detail/pose_stamped__struct.hpp>
+#include <geometry_msgs/msg/detail/twist_stamped__struct.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -81,6 +83,7 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr gt_pose_sub_;
   rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr gt_twist_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr mocap_pose_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr rectified_pose_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_estimated_pub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_estimated_pub_;
@@ -89,6 +92,7 @@ private:
   void gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg);
   void gtTwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr _msg);
   void rectPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg);
+  void mocapPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg);
 
   std::vector<geometry_msgs::msg::TransformStamped> tf2_fix_transforms_;
   geometry_msgs::msg::TransformStamped map2odom_tf_;
@@ -98,17 +102,21 @@ private:
   geometry_msgs::msg::TwistStamped odom_twist_;
   geometry_msgs::msg::PoseStamped gt_pose_stamped_;
   geometry_msgs::msg::TwistStamped gt_twist_stamped_;
+  geometry_msgs::msg::PoseStamped mocap_pose_stamped_;
   geometry_msgs::msg::PoseStamped rectified_pose_;
-  geometry_msgs::msg::PoseStamped global_ref_pose_;
-  geometry_msgs::msg::TwistStamped global_ref_twist_;  // TODO:Review
+  geometry_msgs::msg::PoseStamped pose_estimated_;
+  geometry_msgs::msg::TwistStamped twist_estimated_;  // TODO:Review
 
   bool odom_only_;
   bool ground_truth_;
   bool sensor_fusion_;
+  bool mocap_;
   bool rectified_localization_;
-  bool start_run_;
+  bool run_;
 
   void getGlobalRefState();
+  void getTwistFromOdom();
+  geometry_msgs::msg::TwistStamped getTwistFromPose(const geometry_msgs::msg::PoseStamped &_pose);
 
   std::string global_ref_frame_;
   std::string map_frame_;

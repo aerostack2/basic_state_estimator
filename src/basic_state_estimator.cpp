@@ -35,11 +35,13 @@
  ********************************************************************************/
 
 #include "basic_state_estimator.hpp"
-#include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
+
+#define MOCAP_POSE_TOPIC "mocap/pose"
 
 BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") {
   this->declare_parameter<bool>("odom_only", false);
   this->declare_parameter<bool>("ground_truth", false);
+  this->declare_parameter<bool>("mocap", false);
   this->declare_parameter<bool>("sensor_fusion", false);
   this->declare_parameter<bool>("rectified_localization", false);
   this->declare_parameter<std::string>("base_frame", "base_link");
@@ -47,9 +49,10 @@ BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") 
 }
 
 void BasicStateEstimator::run() {
-  if (!start_run_) {
+  if (!run_) {
     return;
   }
+  RCLCPP_INFO_ONCE(this->get_logger(), "Running state estimation");
   // TODO: SENSOR FUSION
   geometry_msgs::msg::TransformStamped map2odom_tf;
   map2odom_tf = calculateLocalization();
@@ -78,6 +81,7 @@ void BasicStateEstimator::run() {
   publishTfs();
   getGlobalRefState();
   publishStateEstimation();
+  run_ = false;
 }
 
 void BasicStateEstimator::setupNode() {
@@ -93,6 +97,7 @@ void BasicStateEstimator::setupNode() {
   this->get_parameter("global_ref_frame", global_ref_frame);
   this->get_parameter("odom_only", odom_only_);
   this->get_parameter("ground_truth", ground_truth_);
+  this->get_parameter("mocap", mocap_);
   this->get_parameter("sensor_fusion", sensor_fusion_);
   this->get_parameter("rectified_localization", rectified_localization_);
 
@@ -104,11 +109,15 @@ void BasicStateEstimator::setupNode() {
     RCLCPP_INFO(get_logger(), "GROUND TRUTH MODE");
   }
 
+  if (mocap_) {
+    RCLCPP_INFO(get_logger(), "MOCAP MODE");
+  }
+
   if (sensor_fusion_) {
     RCLCPP_INFO(get_logger(), "SENSOR FUSION MODE");
   }
 
-  if (!odom_only_ & !ground_truth_ & !sensor_fusion_) {
+  if (!odom_only_ & !ground_truth_ & !sensor_fusion_ & !mocap_) {
     RCLCPP_ERROR(get_logger(), "NO ESTIMATION MODE ENABLED");
     RCLCPP_ERROR(get_logger(), "DEFAULT: ODOM ONLY ACTIVATED");
     odom_only_ = true;
@@ -133,6 +142,12 @@ void BasicStateEstimator::setupNode() {
         this->generate_global_name(as2_names::topics::ground_truth::twist),
         as2_names::topics::sensor_measurements::qos,
         std::bind(&BasicStateEstimator::gtTwistCallback, this, std::placeholders::_1));
+  }
+
+  if (mocap_) {
+    mocap_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+        this->generate_global_name(MOCAP_POSE_TOPIC), as2_names::topics::sensor_measurements::qos,
+        std::bind(&BasicStateEstimator::mocapPoseCallback, this, std::placeholders::_1));
   }
 
   // if (rectified_localization_) {
@@ -197,7 +212,7 @@ void BasicStateEstimator::setupTfTree() {
   //   // frame_rectified_tf_.child_frame_id.c_str());
   // }
 
-  start_run_ = false;
+  run_ = false;
 }
 
 void BasicStateEstimator::getStartingPose(const std::string &_global_frame,
@@ -291,6 +306,23 @@ geometry_msgs::msg::TransformStamped BasicStateEstimator::calculateLocalization(
     odom2baselink_tf_.header.frame_id = odom_frame_;
   }
 
+  if (mocap_) {
+    map2baselink.header.stamp            = mocap_pose_stamped_.header.stamp;
+    map2baselink.child_frame_id          = baselink_frame_;
+    map2baselink.transform.translation.x = mocap_pose_stamped_.pose.position.x;
+    map2baselink.transform.translation.y = mocap_pose_stamped_.pose.position.y;
+    map2baselink.transform.translation.z = mocap_pose_stamped_.pose.position.z;
+    map2baselink.transform.rotation.x    = mocap_pose_stamped_.pose.orientation.x;
+    map2baselink.transform.rotation.y    = mocap_pose_stamped_.pose.orientation.y;
+    map2baselink.transform.rotation.z    = mocap_pose_stamped_.pose.orientation.z;
+    map2baselink.transform.rotation.w    = mocap_pose_stamped_.pose.orientation.w;
+
+    odom2baselink_tf_ = map2baselink;
+
+    map2baselink.header.frame_id      = map_frame_;
+    odom2baselink_tf_.header.frame_id = odom_frame_;
+  }
+
   // if (rectified_localization_)
   // {
   //   frame_rectified_tf_.header.frame_id = rectified_pose_.header.frame_id;
@@ -315,15 +347,15 @@ void BasicStateEstimator::getGlobalRefState() {
   try {
     auto pose_transform =
         tf_buffer_->lookupTransform(frame_global_pose_, baselink_frame_, tf_publish_time_, 50ms);
-    global_ref_pose_.header.frame_id    = frame_global_pose_;
-    global_ref_pose_.header.stamp       = pose_transform.header.stamp;
-    global_ref_pose_.pose.position.x    = pose_transform.transform.translation.x;
-    global_ref_pose_.pose.position.y    = pose_transform.transform.translation.y;
-    global_ref_pose_.pose.position.z    = pose_transform.transform.translation.z;
-    global_ref_pose_.pose.orientation.x = pose_transform.transform.rotation.x;
-    global_ref_pose_.pose.orientation.y = pose_transform.transform.rotation.y;
-    global_ref_pose_.pose.orientation.z = pose_transform.transform.rotation.z;
-    global_ref_pose_.pose.orientation.w = pose_transform.transform.rotation.w;
+    pose_estimated_.header.frame_id    = frame_global_pose_;
+    pose_estimated_.header.stamp       = pose_transform.header.stamp;
+    pose_estimated_.pose.position.x    = pose_transform.transform.translation.x;
+    pose_estimated_.pose.position.y    = pose_transform.transform.translation.y;
+    pose_estimated_.pose.position.z    = pose_transform.transform.translation.z;
+    pose_estimated_.pose.orientation.x = pose_transform.transform.rotation.x;
+    pose_estimated_.pose.orientation.y = pose_transform.transform.rotation.y;
+    pose_estimated_.pose.orientation.z = pose_transform.transform.rotation.z;
+    pose_estimated_.pose.orientation.w = pose_transform.transform.rotation.w;
 
   } catch (tf2::TransformException &ex) {
     RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
@@ -332,37 +364,52 @@ void BasicStateEstimator::getGlobalRefState() {
 
   // Twist in target frame
   if (odom_only_) {
-    if (odom_twist_.header.frame_id == frame_global_twist_) {
-      global_ref_twist_ = odom_twist_;
-    } else {
-      try {
-        auto twist_transform = tf_buffer_->lookupTransform(
-            frame_global_twist_, odom_twist_.header.frame_id, odom_twist_.header.stamp);
+    getTwistFromOdom();
+  }
 
-        geometry_msgs::msg::Vector3Stamped odom_linear_twist;
-        odom_linear_twist.header = odom_twist_.header;
-        odom_linear_twist.vector = odom_twist_.twist.linear;
+  if (ground_truth_) {
+    twist_estimated_ = gt_twist_stamped_;
+  }
 
-        geometry_msgs::msg::Vector3Stamped global_linear_twist;
-        tf2::doTransform(odom_linear_twist, global_linear_twist, twist_transform);
+  if (mocap_) {
+    twist_estimated_ = getTwistFromPose(mocap_pose_stamped_);
+  }
 
-        // TODO: tranform angular velocity
-        // geometry_msgs::msg::Vector3Stamped odom_angular_twist;
+  if (sensor_fusion_) {  // TODO: Sensor fusion
+  }
+}
 
-        global_ref_twist_.header        = global_linear_twist.header;
-        global_ref_twist_.twist.linear  = global_linear_twist.vector;
-        global_ref_twist_.twist.angular = odom_twist_.twist.angular;
+void BasicStateEstimator::getTwistFromOdom() {
+  if (odom_twist_.header.frame_id == frame_global_twist_) {
+    twist_estimated_ = odom_twist_;
+  } else {
+    try {
+      auto twist_transform = tf_buffer_->lookupTransform(
+          frame_global_twist_, odom_twist_.header.frame_id, odom_twist_.header.stamp);
 
-      } catch (tf2::TransformException &ex) {
-        RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
-                    ex.what());  // Print exception which was caught
-      }
+      geometry_msgs::msg::Vector3Stamped odom_linear_twist;
+      odom_linear_twist.header = odom_twist_.header;
+      odom_linear_twist.vector = odom_twist_.twist.linear;
+
+      geometry_msgs::msg::Vector3Stamped global_linear_twist;
+      tf2::doTransform(odom_linear_twist, global_linear_twist, twist_transform);
+
+      // TODO: tranform angular velocity
+      // geometry_msgs::msg::Vector3Stamped odom_angular_twist;
+
+      twist_estimated_.header        = global_linear_twist.header;
+      twist_estimated_.twist.linear  = global_linear_twist.vector;
+      twist_estimated_.twist.angular = odom_twist_.twist.angular;
+
+    } catch (tf2::TransformException &ex) {
+      RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
+                  ex.what());  // Print exception which was caught
 
       // global_ref_twist.header.frame_id = odom_twist_.header.frame_id;
       // global_ref_twist.header.stamp    = odom_twist_.header.stamp;
       // global_ref_twist.twist.angular   = odom_twist_.twist.angular;
-      // tf2::Quaternion orientation(global_ref_pose.orientation.x, global_ref_pose.orientation.y,
-      //                             global_ref_pose.orientation.z, global_ref_pose.orientation.w);
+      // tf2::Quaternion orientation(pose_estimated.orientation.x, pose_estimated.orientation.y,
+      //                             pose_estimated.orientation.z, pose_estimated.orientation.w);
 
       // // odom2baselink_tf_.transform.rotation.x, odom2baselink_tf_.transform.rotation.y,
       // // odom2baselink_tf_.transform.rotation.z, odom2baselink_tf_.transform.rotation.w);
@@ -374,15 +421,51 @@ void BasicStateEstimator::getGlobalRefState() {
       // global_ref_twist.twist.linear.x = global_linear_twist.x();
       // global_ref_twist.twist.linear.y = global_linear_twist.y();
       // global_ref_twist.twist.linear.z = global_linear_twist.z();
+      // }
     }
   }
+}
 
-  if (ground_truth_) {
-    global_ref_twist_ = gt_twist_stamped_;
-  }
+geometry_msgs::msg::TwistStamped BasicStateEstimator::getTwistFromPose(
+    const geometry_msgs::msg::PoseStamped &_pose) {
+  geometry_msgs::msg::TwistStamped twist;
 
-  if (sensor_fusion_) {  // TODO: Sensor fusion
+  static geometry_msgs::msg::PoseStamped previous_pose_;
+
+  // pose timestamp - previous_pose timestamp
+  double dt = (_pose.header.stamp.sec - previous_pose_.header.stamp.sec) +
+              (_pose.header.stamp.nanosec - previous_pose_.header.stamp.nanosec) * 1e-9;
+  if (dt <= 0.0) {
+    RCLCPP_WARN(this->get_logger(), "dt is negative or zero");
+    return twist;
   }
+  double dx = _pose.pose.position.x - previous_pose_.pose.position.x;
+  double dy = _pose.pose.position.y - previous_pose_.pose.position.y;
+  double dz = _pose.pose.position.z - previous_pose_.pose.position.z;
+
+  double vx = dx / dt;
+  double vy = dy / dt;
+  double vz = dz / dt;
+
+  // moving average filter
+  float alpha             = 0.1;
+  static double vx_filter = 0.0;
+  static double vy_filter = 0.0;
+  static double vz_filter = 0.0;
+
+  vx_filter = (1 - alpha) * vx_filter + alpha * vx;
+  vy_filter = (1 - alpha) * vy_filter + alpha * vy;
+  vz_filter = (1 - alpha) * vz_filter + alpha * vz;
+
+  twist.header.frame_id = _pose.header.frame_id;
+  twist.header.stamp    = _pose.header.stamp;
+  twist.twist.linear.x  = vx_filter;
+  twist.twist.linear.y  = vy_filter;
+  twist.twist.linear.z  = vz_filter;
+
+  previous_pose_ = _pose;
+
+  return twist;
 }
 
 // PUBLISH //
@@ -408,7 +491,6 @@ void BasicStateEstimator::publishStaticTfs() {
 }
 
 void BasicStateEstimator::publishStateEstimation() {
-  // rclcpp::Time timestamp = this->get_clock()->now();
   rclcpp::Time timestamp = tf_publish_time_;
   pose_estimated_pub_->publish(generatePoseStampedMsg(timestamp));
   twist_estimated_pub_->publish(generateTwistStampedMsg(timestamp));
@@ -417,11 +499,10 @@ void BasicStateEstimator::publishStateEstimation() {
 geometry_msgs::msg::PoseStamped BasicStateEstimator::generatePoseStampedMsg(
     const rclcpp::Time &_timestamp) {
   geometry_msgs::msg::PoseStamped pose_stamped;
-  // pose_stamped.header.stamp     = _timestamp;
   pose_stamped.header.stamp     = _timestamp;
-  pose_stamped.header.frame_id  = global_ref_pose_.header.frame_id;
-  pose_stamped.pose.position    = global_ref_pose_.pose.position;
-  pose_stamped.pose.orientation = global_ref_pose_.pose.orientation;
+  pose_stamped.header.frame_id  = pose_estimated_.header.frame_id;
+  pose_stamped.pose.position    = pose_estimated_.pose.position;
+  pose_stamped.pose.orientation = pose_estimated_.pose.orientation;
   return pose_stamped;
 }
 
@@ -429,9 +510,9 @@ geometry_msgs::msg::TwistStamped BasicStateEstimator::generateTwistStampedMsg(
     const rclcpp::Time &_timestamp) {
   geometry_msgs::msg::TwistStamped twist_stamped;
   twist_stamped.header.stamp    = _timestamp;
-  twist_stamped.header.frame_id = global_ref_twist_.header.frame_id;  // TODO:Review ref frame
-  twist_stamped.twist.linear    = global_ref_twist_.twist.linear;
-  twist_stamped.twist.angular   = global_ref_twist_.twist.angular;
+  twist_stamped.header.frame_id = twist_estimated_.header.frame_id;  // TODO:Review ref frame
+  twist_stamped.twist.linear    = twist_estimated_.twist.linear;
+  twist_stamped.twist.angular   = twist_estimated_.twist.angular;
   return twist_stamped;
 }
 
@@ -456,7 +537,7 @@ void BasicStateEstimator::odomCallback(const nav_msgs::msg::Odometry::SharedPtr 
   odom_twist_.twist.angular   = _msg->twist.twist.angular;
 
   last_info_time_ = _msg->header.stamp;
-  start_run_      = true;
+  run_            = true;
 }
 
 void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {
@@ -464,7 +545,7 @@ void BasicStateEstimator::gtPoseCallback(const geometry_msgs::msg::PoseStamped::
   gt_pose_stamped_.pose   = _msg->pose;
 
   last_info_time_ = _msg->header.stamp;
-  start_run_      = true;
+  run_            = true;
 }
 
 void BasicStateEstimator::gtTwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr _msg) {
@@ -472,7 +553,15 @@ void BasicStateEstimator::gtTwistCallback(const geometry_msgs::msg::TwistStamped
   gt_twist_stamped_.twist  = _msg->twist;
 
   last_info_time_ = _msg->header.stamp;
-  start_run_      = true;
+  run_            = true;
+}
+
+void BasicStateEstimator::mocapPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {
+  mocap_pose_stamped_.header = _msg->header;
+  mocap_pose_stamped_.pose   = _msg->pose;
+
+  last_info_time_ = _msg->header.stamp;
+  run_            = true;
 }
 
 void BasicStateEstimator::rectPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr _msg) {
