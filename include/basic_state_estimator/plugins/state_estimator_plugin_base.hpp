@@ -2,6 +2,7 @@
 #define __STATE_ESTIMATOR_PLUGIN_BASE_HPP__
 
 #include <tf2_ros/buffer.h>
+#include <tf2_ros/buffer_interface.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <as2_core/node.hpp>
@@ -14,6 +15,9 @@
 
 #include <as2_core/names/topics.hpp>
 
+/* enum class transform_type { STATIC, DYNAMIC };
+enum class transform_frames { EARTH2MAP, MAP2ODOM, ODOM2BASE }; */
+
 class StateEstimatorPluginBase {
 protected:
   as2::Node* node_ptr_;
@@ -24,6 +28,8 @@ private:
   std::string odom_frame_id_;
   std::string map_frame_id_;
   tf2::Transform earth_to_map = tf2::Transform::getIdentity();
+  tf2::Transform map_to_odom  = tf2::Transform::getIdentity();
+  tf2::Transform odom_to_base = tf2::Transform::getIdentity();
 
 public:
   StateEstimatorPluginBase(){};
@@ -35,7 +41,8 @@ public:
     tf_buffer_             = tf_buffer;
     tf_broadcaster_        = tf_broadcaster;
     static_tf_broadcaster_ = static_tf_broadcaster;
-    twist_pub_             = node_ptr_->create_publisher<geometry_msgs::msg::TwistStamped>(
+
+    twist_pub_ = node_ptr_->create_publisher<geometry_msgs::msg::TwistStamped>(
         as2_names::topics::self_localization::twist, as2_names::topics::self_localization::qos);
     pose_pub_ = node_ptr_->create_publisher<geometry_msgs::msg::PoseStamped>(
         as2_names::topics::self_localization::pose, as2_names::topics::self_localization::qos);
@@ -71,6 +78,17 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
 
+  void check_standard_transform(const geometry_msgs::msg::TransformStamped& transform) {
+    if (transform.header.frame_id == get_earth_frame() &&
+        transform.child_frame_id == get_map_frame()) {
+      earth_to_map = tf2::Transform(
+          tf2::Quaternion(transform.transform.rotation.x, transform.transform.rotation.y,
+                          transform.transform.rotation.z, transform.transform.rotation.w),
+          tf2::Vector3(transform.transform.translation.x, transform.transform.translation.y,
+                       transform.transform.translation.z));
+    }
+  }
+
 protected:
   inline void publish_transform(const geometry_msgs::msg::TransformStamped& transform) {
     tf_broadcaster_->sendTransform(transform);
@@ -91,6 +109,9 @@ protected:
   inline const std::string& get_map_frame() const { return map_frame_id_; }
   inline const std::string& get_odom_frame() const { return odom_frame_id_; }
   inline const std::string& get_base_frame() const { return base_frame_id_; }
+
+  bool static_transforms_published_ = false;
+  rclcpp::TimerBase::SharedPtr static_transforms_timer_;
 
   bool get_earth_to_map_transform(tf2::Transform& earth_to_map) {
     geometry_msgs::msg::TransformStamped transform;
