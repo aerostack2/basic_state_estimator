@@ -30,6 +30,7 @@ endforeach()
 include_directories(
   include
   include/${PROJECT_NAME}
+  include/${PROJECT_NAME}/plugins
 )
 
 set(SOURCE_CPP_FILES
@@ -41,6 +42,9 @@ set(SOURCE_CPP_FILES
 # )
 add_executable(${PROJECT_NAME}_node src/basic_state_estimator_node.cpp ${SOURCE_CPP_FILES})
 ament_target_dependencies(${PROJECT_NAME}_node ${PROJECT_DEPENDENCIES})
+
+add_executable(plugin_test tests/plugin_test.cpp )
+ament_target_dependencies(plugin_test ${PROJECT_DEPENDENCIES})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_cppcheck REQUIRED)

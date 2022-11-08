@@ -46,35 +46,15 @@ BasicStateEstimator::BasicStateEstimator() : as2::Node("basic_state_estimator") 
   this->declare_parameter<std::string>("global_ref_frame", "global_ref_frame");
 }
 
+// FIXME::TF must be updated ASAP to avoid problems with the rest of the nodes
+
 void BasicStateEstimator::run() {
   if (!start_run_) {
     return;
   }
-  // TODO: SENSOR FUSION
   geometry_msgs::msg::TransformStamped map2odom_tf;
   map2odom_tf = calculateLocalization();
   updateOdomTfDrift(odom2baselink_tf_, map2odom_tf);
-  // if (rectified_localization_) {
-  //   // TODO: Search the tf with the same frames
-  //   try {
-  //     // std::string rectified_frame = baselink_frame_; frame_rectified_tf_.child_frame_id
-  //     std::string ref_frame = "earth";
-  //     auto pose_transform   = tf_buffer_->lookupTransform(
-  //         ref_frame, frame_rectified_tf_.child_frame_id, tf2::TimePointZero);
-  //     if (pose_transform.header.frame_id == ref_frame &&
-  //         pose_transform.child_frame_id == frame_rectified_tf_.child_frame_id) {
-  //       ref2ref_rectified_tf_.header.frame_id = frame_rectified_tf_.header.frame_id;
-  //       ref2ref_rectified_tf_.child_frame_id  = ref_frame;
-  //       updateRefTfRectification(frame_rectified_tf_.transform, pose_transform.transform);
-  //     } else {
-  //       RCLCPP_WARN(get_logger(), "Tranformation nod found: %s - %s", ref_frame.c_str(),
-  //                   frame_rectified_tf_.child_frame_id.c_str());
-  //     }
-  //   } catch (tf2::TransformException &ex) {
-  //     RCLCPP_WARN(this->get_logger(), "Transform Failure: %s\n",
-  //                 ex.what());  // Print exception which was caught
-  //   }
-  // }
   publishTfs();
   getGlobalRefState();
   publishStateEstimation();
@@ -147,7 +127,7 @@ void BasicStateEstimator::setupNode() {
   twist_estimated_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
       as2_names::topics::self_localization::twist, as2_names::topics::self_localization::qos);
 
-  std::string ns = this->get_namespace();
+  const std::string ns = this->get_namespace();
   // RCLCPP_INFO(get_logger(), "Node namespace: %s", ns.c_str());
   global_ref_frame_ = as2::tf::generateTfName(ns, global_ref_frame);
   map_frame_        = as2::tf::generateTfName(ns, "map");
