@@ -1,6 +1,8 @@
 #ifndef __STATE_ESTIMATOR_PLUGIN_MOCAP_HPP__
 #define __STATE_ESTIMATOR_PLUGIN_MOCAP_HPP__
 
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Vector3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <rclcpp/duration.hpp>
 #include <state_estimator_plugin_base.hpp>
@@ -35,12 +37,13 @@ public:
   };
 
   const geometry_msgs::msg::TwistStamped& twist_from_pose(
-      const geometry_msgs::msg::PoseStamped& pose) {
-    const double alpha = 0.1;
+      const geometry_msgs::msg::PoseStamped& pose,
+      std::vector<tf2::Transform>* data = nullptr) {
+    const double alpha = 0.01;
 
     const auto last_time = twist_msg_.header.stamp;
     auto dt              = (rclcpp::Time(pose.header.stamp) - last_time).seconds();
-
+    RCLCPP_INFO(node_ptr_->get_logger(), "dt: %f", dt);
     if (dt <= 0) {
       RCLCPP_WARN(node_ptr_->get_logger(), "dt <= 0");
       return twist_msg_;
@@ -54,6 +57,8 @@ public:
 
     tf2::Vector3 vel = (current_pose - last_pose) / dt;
 
+    last_pose = current_pose;
+
     vel = alpha * vel + (1 - alpha) * tf2::Vector3(twist_msg_.twist.linear.x,
                                                    twist_msg_.twist.linear.y,
                                                    twist_msg_.twist.linear.z);
@@ -62,13 +67,30 @@ public:
     twist_msg_.twist.linear.x = vel.x();
     twist_msg_.twist.linear.y = vel.y();
     twist_msg_.twist.linear.z = vel.z();
-
     // TODO: add angular velocity -> this_could_be_obtained_from_imu
     twist_msg_.twist.angular.x = 0;
     twist_msg_.twist.angular.y = 0;
     twist_msg_.twist.angular.z = 0;
+    if (data != nullptr) {
+      std::vector<tf2::Transform>* transforms = (std::vector<tf2::Transform>*)data;
+      tf2::Transform earth_to_map             = transforms->at(0);
+      tf2::Transform map_to_odom              = transforms->at(1);
+      tf2::Transform odom_to_base             = transforms->at(2);
 
-    return twist_msg_;
+      vel = tf2::quatRotate(
+          (odom_to_base.inverse() * map_to_odom.inverse() * earth_to_map.inverse()).getRotation(),
+          vel);
+
+      // FIXME: CLEAN STATIC
+      static geometry_msgs::msg::TwistStamped twist_msg;
+      twist_msg.header.stamp   = pose.header.stamp;
+      twist_msg.twist.linear.x = vel.x();
+      twist_msg.twist.linear.y = vel.y();
+      twist_msg.twist.linear.z = vel.z();
+      return twist_msg;
+    } else {
+      return twist_msg_;
+    }
   };
 
   geometry_msgs::msg::TwistStamped twist_msg_;
@@ -114,7 +136,8 @@ private:
     publish_pose(pose_msg);
 
     // Compute twist from mocap
-    publish_twist(twist_from_pose(pose_msg));
+    auto data = std::vector<tf2::Transform>{earth_to_map_, map_to_odom_, odom_to_base_};
+    publish_twist(twist_from_pose(pose_msg, &data));
   };
 };
 

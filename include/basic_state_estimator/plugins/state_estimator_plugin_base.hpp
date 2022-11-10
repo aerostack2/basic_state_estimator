@@ -101,7 +101,7 @@ protected:
     twist_pub_->publish(twist);
   }
   inline void publish_pose(const geometry_msgs::msg::PoseStamped& pose) {
-    RCLCPP_INFO(node_ptr_->get_logger(), "Publishing pose: %s", pose.header.frame_id.c_str());
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Publishing pose: %s", pose.header.frame_id.c_str());
     pose_pub_->publish(pose);
   }
 
