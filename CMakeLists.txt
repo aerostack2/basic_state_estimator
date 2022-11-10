@@ -43,6 +43,10 @@ set(SOURCE_CPP_FILES
 add_executable(${PROJECT_NAME}_node src/basic_state_estimator_node.cpp ${SOURCE_CPP_FILES})
 ament_target_dependencies(${PROJECT_NAME}_node ${PROJECT_DEPENDENCIES})
 
+
+add_executable(mocap_state_estimator_node src/mocap_state_estimator_node.cpp ${SOURCE_CPP_FILES})
+ament_target_dependencies(mocap_state_estimator_node ${PROJECT_DEPENDENCIES})
+
 add_executable(plugin_test tests/plugin_test.cpp )
 ament_target_dependencies(plugin_test ${PROJECT_DEPENDENCIES})
 
@@ -61,6 +65,7 @@ install(DIRECTORY
 
 install(TARGETS
   ${PROJECT_NAME}_node
+  mocap_state_estimator_node
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
