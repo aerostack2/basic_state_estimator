@@ -83,10 +83,11 @@ public:
 
       // FIXME: CLEAN STATIC
       static geometry_msgs::msg::TwistStamped twist_msg;
-      twist_msg.header.stamp   = pose.header.stamp;
-      twist_msg.twist.linear.x = vel.x();
-      twist_msg.twist.linear.y = vel.y();
-      twist_msg.twist.linear.z = vel.z();
+      twist_msg.header.stamp    = pose.header.stamp;
+      twist_msg.header.frame_id = get_base_frame();
+      twist_msg.twist.linear.x  = vel.x();
+      twist_msg.twist.linear.y  = vel.y();
+      twist_msg.twist.linear.z  = vel.z();
       return twist_msg;
     } else {
       return twist_msg_;
